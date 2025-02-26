@@ -47,12 +47,17 @@ export const actions: Actions = {
         });
       }
 
+      // Get current timestamp in milliseconds
+      const now = Date.now();
+      // Set expiry times - 24 hours for active, 7 days for idle
+      const active_expires = BigInt(now + 24 * 60 * 60 * 1000);
+      const idle_expires = BigInt(now + 7 * 24 * 60 * 60 * 1000);
+
       const session = await auth.createSession({
         userId: user.id,
         attributes: {},
-        // Add required session expiry times
-        active_expires: BigInt(Date.now()) + BigInt(24 * 60 * 60 * 1000), // 24 hours from now
-        idle_expires: BigInt(Date.now()) + BigInt(7 * 24 * 60 * 60 * 1000) // 7 days from now
+        active_expires,
+        idle_expires
       });
 
       locals.auth.setSession(session);
