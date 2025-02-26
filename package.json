@@ -36,12 +36,13 @@
 		"vite": "^6.0.0"
 	},
 	"dependencies": {
-		"@lucia-auth/adapter-sqlite": "^3.0.2",
-		"@prisma/client": "^6.4.1",
+		"@lucia-auth/adapter-prisma": "^4.0.1",
+		"@prisma/client": "^5.22.0",
 		"@tailwindcss/typography": "^0.5.16",
 		"eventsource-parser": "^3.0.0",
+		"lucia": "^3.2.2",
 		"marked": "^15.0.7",
-		"prisma": "^6.4.1",
+		"prisma": "^5.22.0",
 		"shadcn-svelte": "^0.14.0"
 	}
 }
