@@ -1,0 +1,39 @@
+创建一个svelte+tailwind css+shacn项目
+
+1
+mkdir webchat 
+cd webchat
+npx sv create  
+
+2
+npm install @prisma/client prisma
+npm install @lucia-auth/adapter-sqlite lucia
+npm install @sveltejs/kit
+
+
+npm install eventsource-parser
+npm install marked 
+
+3 配置tailwind.config.js
+
+npm install -D tailwindcss postcss autoprefixer
+npm install -D tailwindcss@latest postcss@latest autoprefixer@latest
+
+
+create 
+tailwind.config.cjs
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./src/**/*.{html,js,svelte,ts}'],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+
+
+4 install shdcn
+
+npm install shadcn-svelte
+
+npx shadcn-svelte@latest init
