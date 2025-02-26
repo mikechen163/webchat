@@ -4,13 +4,16 @@ import { PrismaClient } from "@prisma/client";
 import { dev } from "$app/environment";
 
 const client = new PrismaClient();
-const adapter = new PrismaAdapter(client);
 
-export const auth = new Lucia({
-  env: dev ? "DEV" : "PROD",
-  adapter: adapter,
-    sessionCookie: {
-    expires: false
+// Use the correct table names from your schema
+const adapter = new PrismaAdapter(client.authSession, client.key, client.user);
+
+export const auth = new Lucia(adapter, {
+  sessionCookie: {
+    expires: false,
+    attributes: {
+      secure: !dev
+    }
   },
   getUserAttributes: (data) => {
     return {

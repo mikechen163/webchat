@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 
 // 如果用户已登录，重定向到聊天页面
 export const load: PageServerLoad = async ({ locals }) => {
-  if (locals.session) {
+  if (locals.auth.session) {
     throw redirect(302, "/chat");
   }
   return {};
@@ -50,7 +50,12 @@ export const actions: Actions = {
       const session = await auth.createSession(user.id, {});
       locals.auth.setSession(session);
       
-      throw redirect(302, "/chat");
+      const sessionCookie = auth.createSessionCookie(session);
+      throw redirect(302, "/chat", {
+        headers: {
+          "Set-Cookie": sessionCookie.serialize()
+        }
+      });
     } catch (error) {
       console.error(error);
       return fail(500, {
