@@ -4,17 +4,30 @@ import { PrismaClient } from "@prisma/client";
 import { dev } from "$app/environment";
 
 const client = new PrismaClient();
+const adapter = new PrismaAdapter(client);
 
-// 创建 auth 实例
 export const auth = new Lucia({
-  adapter: new PrismaAdapter(client),
   env: dev ? "DEV" : "PROD",
+  adapter: adapter,
+    sessionCookie: {
+    expires: false
+  },
   getUserAttributes: (data) => {
     return {
       email: data.email,
-      role: data.role,
+      role: data.role
     };
-  },
+  }
 });
+
+declare module "lucia" {
+  interface Register {
+    Lucia: typeof auth;
+    DatabaseUserAttributes: {
+      email: string;
+      role: string;
+    };
+  }
+}
 
 export type Auth = typeof auth;
