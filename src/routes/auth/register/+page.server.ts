@@ -33,7 +33,9 @@ export const actions: Actions = {
 
       const session = await auth.createSession({
         userId: user.id,
-        attributes: {}
+        attributes: {},
+        active_expires: BigInt(Date.now()) + BigInt(24 * 60 * 60 * 1000),
+        idle_expires: BigInt(Date.now()) + BigInt(7 * 24 * 60 * 60 * 1000)
       });
       
       const sessionCookie = auth.createSessionCookie(session);
