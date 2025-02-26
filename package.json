@@ -38,8 +38,8 @@
 	"dependencies": {
 		"@lucia-auth/adapter-sqlite": "^3.0.2",
 		"@prisma/client": "^6.4.1",
+		"@tailwindcss/typography": "^0.5.16",
 		"eventsource-parser": "^3.0.0",
-		"lucia": "^3.2.2",
 		"marked": "^15.0.7",
 		"prisma": "^6.4.1",
 		"shadcn-svelte": "^0.14.0"
