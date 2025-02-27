@@ -5,7 +5,7 @@ import { error } from "@sveltejs/kit";
 const prisma = new PrismaClient();
 
 export const load: PageServerLoad = async ({ params, locals }) => {
-  const { user } = await locals.auth.validateUser();
+  const { user } =  locals.auth;
   if (!user) throw error(401, "Unauthorized");
 
   const session = await prisma.session.findUnique({

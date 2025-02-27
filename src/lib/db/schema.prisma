@@ -37,7 +37,7 @@ model Key {
 }
 
 model Session {
-  id        String   @id
+  id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   title     String   @default("New Chat")
