@@ -41,11 +41,9 @@
 		"@prisma/client": "^5.22.0",
 		"@tailwindcss/typography": "^0.5.16",
 		"bcrypt": "^5.1.1",
-		"cuid": "^3.0.0",
 		"eventsource-parser": "^3.0.0",
 		"lucia": "^3.2.2",
 		"marked": "^15.0.7",
-		"nanoid": "^5.1.2",
 		"prisma": "^5.22.0",
 		"shadcn-svelte": "^0.14.0"
 	}

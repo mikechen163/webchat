@@ -5,7 +5,7 @@ import type { RequestHandler } from "./$types";
 const prisma = new PrismaClient();
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
-  const { user } = locals.auth;
+  const { user } = await locals.auth.validateUser();
   if (!user || user.role !== "admin") {
     throw error(403, "Unauthorized");
   }
@@ -21,7 +21,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 };
 
 export const DELETE: RequestHandler = async ({ params, locals }) => {
-  const { user } = locals.auth;
+  const { user } = await locals.auth.validateUser();
   if (!user || user.role !== "admin") {
     throw error(403, "Unauthorized");
   }

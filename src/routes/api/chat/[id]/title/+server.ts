@@ -5,7 +5,7 @@ import type { RequestHandler } from "./$types";
 const prisma = new PrismaClient();
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
-  const { user } =  locals.auth;
+  const { user } = await locals.auth.validateUser();
   if (!user) throw error(401, "Unauthorized");
 
   const { title } = await request.json();

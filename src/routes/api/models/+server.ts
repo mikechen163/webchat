@@ -5,7 +5,7 @@ import type { RequestHandler } from "./$types";
 const prisma = new PrismaClient();
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-  const { user } = locals.auth;
+  const { user } = await locals.auth.validateUser();
   if (!user || user.role !== "admin") {
     throw error(403, "Unauthorized");
   }
