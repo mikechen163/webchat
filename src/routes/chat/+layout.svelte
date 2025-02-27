@@ -4,11 +4,12 @@
   import { DropdownMenu } from "$lib/components/ui/dropdown-menu";
   import { Input } from "$lib/components/ui/input";
   import { toast } from "$lib/components/ui/toast";
-  import { MoreHorizontal } from "lucide-svelte";
+  import { MoreHorizontal, Menu } from "lucide-svelte";
   import { sessionsStore } from '$lib/stores/sessions';
   import { goto, invalidate } from "$app/navigation";
   import ConfirmDialog from "$lib/components/ui/confirm-dialog.svelte";
   import { onMount } from 'svelte';
+  import { sidebarOpen } from '$lib/stores/sidebar';
 
   let editingSessionId: string | null = null;
   let newTitle = "";
@@ -19,6 +20,9 @@
   let selectedSessionId: string | null = null;
   let showConfirmDialog = false;
   let confirmDialogPosition = { x: 0, y: 0 };
+
+  // 添加响应式处理
+  let innerWidth: number;
 
   function handleContextMenu(event: MouseEvent, sessionId: string) {
     event.preventDefault();
@@ -77,6 +81,10 @@
       await goto(`/chat/${sessionId}`);
       // 然后强制重新获取数据
       await invalidate('app:session');
+      // 在移动端自动隐藏侧边栏
+      if (innerWidth < 768) {
+        $sidebarOpen = false;
+      }
       // 如果是同一会话，强制刷新页面
       if (sessionId === $page.params.id) {
         window.location.reload();
@@ -104,13 +112,42 @@
     await handleDelete(sessionToDelete); // 执行删除操作
     selectedSessionId = null; // 重置选中的会话ID
   }
+
+  // 切换侧边栏
+  function toggleSidebar() {
+    $sidebarOpen = !$sidebarOpen;
+  }
 </script>
 
-<svelte:window on:click={handleClickOutside} />
+<svelte:window 
+  bind:innerWidth
+  on:click={handleClickOutside} 
+/>
 
 <div class="h-screen flex">
-  <!-- Sidebar -->
-  <div class="w-[240px] bg-[#f7f7f7] flex flex-col">
+  <!-- 移动端顶部菜单按钮 -->
+  {#if innerWidth < 768}
+    <button
+      class="md:hidden fixed top-2 left-2 z-50 p-2 bg-white rounded-md shadow-md"
+      on:click={toggleSidebar}
+    >
+      <Menu size={24} />
+    </button>
+  {/if}
+
+  <!-- Sidebar with responsive classes -->
+  <div class="
+    {$sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+    md:translate-x-0
+    transition-transform duration-200
+    fixed md:relative
+    z-40 md:z-auto
+    w-[240px]
+    bg-[#f7f7f7]
+    flex flex-col
+    h-full
+    {innerWidth < 768 && $sidebarOpen ? 'shadow-lg' : ''}
+  ">
     <div class="p-4">
       <Button variant="outline" class="w-full" href="/chat/new">
         New Chat
@@ -140,6 +177,14 @@
       </Button>
     </div>
   </div>
+
+  <!-- Overlay for mobile -->
+  {#if innerWidth < 768 && $sidebarOpen}
+    <div
+      class="fixed inset-0 bg-black bg-opacity-50 z-30"
+      on:click={() => $sidebarOpen = false}
+    ></div>
+  {/if}
 
   <!-- Main Content with loading indicator -->
   <div class="flex-1 flex flex-col relative h-full">

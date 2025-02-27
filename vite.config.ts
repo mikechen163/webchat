@@ -23,4 +23,8 @@ export default defineConfig({
             ],
         },
     },
+    server: {
+        host: '0.0.0.0', // 监听所有网络接口
+        port: 3000, // 可选：指定端口号，默认是 3000
+    },
 });
