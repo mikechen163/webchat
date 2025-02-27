@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { page } from "$app/stores";
+  import { page, navigating } from "$app/stores";
   import { Button } from "$lib/components/ui/button";
   import { DropdownMenu } from "$lib/components/ui/dropdown-menu";
   import { Input } from "$lib/components/ui/input";
   import { toast } from "$lib/components/ui/toast";
   import { MoreHorizontal } from "lucide-svelte";
   import { sessionsStore } from '$lib/stores/sessions';
+  import { goto } from "$app/navigation";
 
   let editingSessionId: string | null = null;
   let newTitle = "";
@@ -65,6 +66,17 @@
       newTitle = "";
     }
   }
+
+  async function handleSessionClick(event: MouseEvent, sessionId: string) {
+    event.preventDefault();
+    // 如果点击的是当前会话，强制刷新
+    if (sessionId === $page.params.id) {
+      window.location.href = `/chat/${sessionId}`;
+    } else {
+      // 否则使用 goto 进行导航
+      await goto(`/chat/${sessionId}`);
+    }
+  }
 </script>
 
 <svelte:window on:click={handleClickOutside} />
@@ -80,7 +92,10 @@
       {#each $page.data.sessions || [] as session}
         <a 
           href="/chat/{session.id}" 
-          class="flex items-center px-2 py-2 hover:bg-gray-100 rounded {$page.params.id === session.id ? 'bg-gray-200' : ''}"
+          class="flex items-center px-2 py-2 hover:bg-gray-100 rounded transition-colors duration-200 
+            {$page.params.id === session.id ? 'bg-gray-200' : ''}
+            {$navigating?.to?.pathname === `/chat/${session.id}` ? 'animate-pulse' : ''}"
+          on:click|preventDefault={(e) => handleSessionClick(e, session.id)}
           on:contextmenu|preventDefault={(e) => handleContextMenu(e, session.id)}
         >
           <span class="truncate text-gray-700 {$page.params.id === session.id ? 'font-medium' : ''}">
@@ -97,8 +112,13 @@
     </div>
   </div>
 
-  <!-- Main Content -->
-  <div class="flex-1 flex flex-col">
+  <!-- Main Content with loading indicator -->
+  <div class="flex-1 flex flex-col relative">
+    {#if $navigating}
+      <div class="absolute inset-0 bg-white/50 z-10 flex items-center justify-center">
+        <div class="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+      </div>
+    {/if}
     <slot />
   </div>
 </div>
