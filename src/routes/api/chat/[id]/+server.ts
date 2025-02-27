@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 const MAX_HISTORY_MESSAGES = 10;
 
 export const POST: RequestHandler = async ({ request, params, locals }) => {
-  const { user } = await locals.auth.validateUser();
+  const { user } =  locals.auth;
   if (!user) throw error(401, "Unauthorized");
 
   const { content, systemPrompt } = await request.json();
