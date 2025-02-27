@@ -242,3 +242,22 @@ export const GET: RequestHandler = async ({ params, locals }) => {
     headers: { "Content-Type": "application/json" }
   });
 };
+
+export const DELETE: RequestHandler = async ({ params }) => {
+  try {
+    // 删除会话相关的所有消息
+    await prisma.message.deleteMany({
+      where: { sessionId: params.id }
+    });
+
+    // 删除会话
+    await prisma.session.delete({
+      where: { id: params.id }
+    });
+
+    return new Response(null, { status: 204 });
+  } catch (e) {
+    console.error('Session deletion error:', e);
+    throw error(500, 'Failed to delete session');
+  }
+};

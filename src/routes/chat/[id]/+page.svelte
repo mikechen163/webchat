@@ -218,12 +218,18 @@
         />
       </form>
     {:else}
-      <h1 
-        class="text-xl font-semibold cursor-pointer hover:text-gray-600"
+      <button 
+        type="button"
+        class="text-xl font-semibold hover:text-gray-600 text-left"
         on:click={() => editingTitle = true}
+        on:keydown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            editingTitle = true;
+          }
+        }}
       >
         {data.session.title}
-      </h1>
+      </button>
     {/if}
     
     <div class="flex items-center gap-2">

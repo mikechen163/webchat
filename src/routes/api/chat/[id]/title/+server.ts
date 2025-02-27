@@ -1,23 +1,25 @@
-import { error, json } from "@sveltejs/kit";
+import { error } from "@sveltejs/kit";
 import { PrismaClient } from "@prisma/client";
 import type { RequestHandler } from "./$types";
 
 const prisma = new PrismaClient();
 
-export const PATCH: RequestHandler = async ({ params, request, locals }) => {
-  const { user } =  locals.auth;
-  if (!user) throw error(401, "Unauthorized");
-
+export const PATCH: RequestHandler = async ({ params, request }) => {
   const { title } = await request.json();
-  if (!title) throw error(400, "Title is required");
+  
+  if (!title?.trim()) {
+    throw error(400, "Title is required");
+  }
 
-  const session = await prisma.session.update({
-    where: {
-      id: params.id,
-      userId: user.id
-    },
-    data: { title }
-  });
+  try {
+    await prisma.session.update({
+      where: { id: params.id },
+      data: { title }
+    });
 
-  return json(session);
+    return new Response(null, { status: 204 });
+  } catch (e) {
+    console.error('Title update error:', e);
+    throw error(500, 'Failed to update title');
+  }
 };
