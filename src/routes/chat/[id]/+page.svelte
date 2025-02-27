@@ -8,6 +8,7 @@
   import { toast } from "$lib/components/ui/toast";
   import { onDestroy } from "svelte";
   import { sessionsStore } from '$lib/stores/sessions';
+  import { ArrowUp } from "lucide-svelte";  // 添加这行引入
 
   export let data;
   let messages = data.messages || [];
@@ -21,6 +22,26 @@
   let autoScroll = true;
   let typingTimeout: NodeJS.Timeout;
   let lastTypingUpdate = 0;
+
+
+  // 添加工具栏状态控制
+  let showTools = false;
+  
+  // 添加工具选项
+  const tools = [
+    { id: 'thinking', label: 'Thinking ', icon: '🤔' },
+    { id: 'websearch', label: 'Web Search', icon: '🌐' }
+   // { id: 'tools', label: 'Tools', icon: '🛠' }, 
+   // { id: 'image', label: 'Image', icon: '🖼' },
+  
+  ];
+
+  // 添加工具选择处理函数
+  function handleToolSelect(toolId: string) {
+    // 根据不同工具实现相应功能
+    console.log(`Selected tool: ${toolId}`);
+    showTools = false;
+  }
 
   // 定期保存草稿
   $: if (messageInput) {
@@ -279,22 +300,52 @@
       </div>
     {/if}
 
-    <!-- Input -->
-    <div class="border-t shrink-0">
-      <div class="max-w-[1000px] mx-auto p-4">
-        <form on:submit|preventDefault={handleSubmit} class="flex gap-2">
-          <Input
-            type="text"
-            bind:value={messageInput}
-            placeholder="Type a message..."
-            disabled={sending}
-            class="flex-1"
-          />
-          <Button type="submit" disabled={sending}>
-            {sending ? "Sending..." : "Send"}
-          </Button>
-        </form>
+    <!-- 修改 Input 部分 -->
+  <div class="border-t shrink-0">
+    <div class="max-w-[1000px] mx-auto p-4">
+      <!-- 添加工具栏 -->
+      <div class="mb-2 flex items-center gap-2 text-sm text-gray-600">
+        {#each tools as tool}
+          <button
+            class="px-3 py-1.5 rounded-full hover:bg-gray-100 flex items-center gap-1.5"
+            on:click={() => handleToolSelect(tool.id)}
+          >
+            <span>{tool.icon}</span>
+            <span>{tool.label}</span>
+          </button>
+        {/each}
+      </div>
+      
+      <!-- 消息输入表单 -->
+      <form on:submit|preventDefault={handleSubmit} class="flex items-center gap-2">
+        <Input
+          type="text"
+          bind:value={messageInput}
+          placeholder="Send a Message"
+          disabled={sending}
+          class="flex-1 h-[48px] rounded-[24px] text-lg px-6 bg-white border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        />
+        <Button 
+          type="submit" 
+          disabled={sending}
+          class="h-12 w-12 rounded-full p-0 flex items-center justify-center bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          variant="default"
+        >
+          {#if sending}
+            <div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+          {:else}
+            <ArrowUp class="h-6 w-6" />
+          {/if}
+        </Button>
+      </form>
+
+      <!-- 添加提示文本 -->
+      <div class="mt-2 text-xs text-gray-400 text-center">
+        Thinking (QwQ) is a preview model and is still being updated.
       </div>
     </div>
+  </div>
+
+    
   </div>
 </div>
