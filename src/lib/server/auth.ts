@@ -7,7 +7,7 @@ const client = new PrismaClient();
 
 const adapter = new PrismaAdapter(
   client.authSession, // Use authSession instead of session
-  client.key
+  client.user
 );
 
 export const auth = new Lucia(adapter, {
