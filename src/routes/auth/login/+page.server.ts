@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-  default: async ({ request, locals }) => {
+  default: async ({ request, locals, cookies }) => {
     const form = await request.formData();
     const email = form.get("email");
     const password = form.get("password");
@@ -53,12 +53,9 @@ export const actions: Actions = {
         {}
       );
 
-      const sessionCookie = auth.createSessionCookie(session);
-      throw redirect(302, "/chat", {
-        headers: {
-          "Set-Cookie": sessionCookie.serialize()
-        }
-      });
+      const sessionCookie = auth.createSessionCookie(session.id);
+      cookies.set(sessionCookie.name, sessionCookie.value, { ...sessionCookie.attributes, path: '/' });
+      throw redirect(302, "/chat");
     } catch (error) {
       console.error(error);
       return fail(500, {
