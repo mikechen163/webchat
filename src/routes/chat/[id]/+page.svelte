@@ -7,6 +7,7 @@
   import ChatBubble from "$lib/components/ChatBubble.svelte";
   import { toast } from "$lib/components/ui/toast";
   import { onDestroy } from "svelte";
+  import { sessionsStore } from '$lib/stores/sessions';
 
   export let data;
   let messages = data.messages || [];
@@ -100,7 +101,29 @@
       let assistantResponse = "";
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          // 轮询检查session更新
+          let retries = 0;
+          const maxRetries = 5;
+          
+          while (retries < maxRetries) {
+            const sessionResponse = await fetch(`/api/chat/${$page.params.id}/session`);
+            if (sessionResponse.ok) {
+              const sessionData = await sessionResponse.json();
+              if (sessionData.title !== data.session.title) {
+                data.session = sessionData;
+                // 触发页面更新
+                data = { ...data };
+                // 通知sidebar更新
+                $sessionsStore.invalidate();
+                break;
+              }
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            retries++;
+          }
+          break;
+        }
         
         const chunk = new TextDecoder().decode(value);
         assistantResponse += chunk;

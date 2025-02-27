@@ -59,7 +59,46 @@ const MAX_HISTORY_MESSAGES = 10;
 //   );
 // };
 
-export async function POST({ request, params }) {
+async function generateTitle(messages: any[]) {
+  const prompt = `### Task:
+Generate a concise, 3-5 word title with an emoji summarizing the chat history.
+### Guidelines:
+- The title should clearly represent the main theme or subject of the conversation.
+- Use emojis that enhance understanding of the topic, but avoid quotation marks or special formatting.
+- Write the title in the chat's primary language; default to English if multilingual.
+- Prioritize accuracy over excessive creativity; keep it clear and simple.
+### Output:
+JSON format: { "title": "your concise title here" }
+### Chat History:
+${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`;
+
+  const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to generate title');
+  }
+
+  const data = await response.json();
+  try {
+    return JSON.parse(data.choices[0].message.content);
+  } catch (e) {
+    console.error('Failed to parse title response:', e);
+    return null;
+  }
+}
+
+export async function POST({ request, params, fetch }) {
   try {
     const { content } = await request.json();
     
@@ -67,18 +106,14 @@ export async function POST({ request, params }) {
       throw new Error('Missing OpenAI configuration');
     }
 
-    // 获取历史消息
+    // 获取历史消息并保存用户消息
     const history = await prisma.message.findMany({
       where: { sessionId: params.id },
       orderBy: { createdAt: 'asc' },
       take: MAX_HISTORY_MESSAGES,
-      select: {
-        role: true,
-        content: true
-      }
+      select: { role: true, content: true }
     });
 
-    // 保存用户消息
     await prisma.message.create({
       data: {
         sessionId: params.id,
@@ -87,12 +122,9 @@ export async function POST({ request, params }) {
       }
     });
 
-    // 准备发送给 OpenAI 的消息数组
-    const messages = [
-      ...history,
-      { role: 'user', content }
-    ];
-
+    const messages = [...history, { role: 'user', content }];
+    let fullAssistantMessage = '';
+    
     const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -110,73 +142,81 @@ export async function POST({ request, params }) {
       throw new Error(`OpenAI API error: ${response.status}`);
     }
 
-    let fullAssistantMessage = ''; // 用于存储完整的助手回复
+    const stream = new ReadableStream({
+      async start(controller) {
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('Stream error');
 
-    return new Response(
-      new ReadableStream({
-        async start(controller) {
-          const reader = response.body?.getReader();
-          if (!reader) throw new Error('Stream error');
-
-          try {
-            let buffer = '';
-            
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) {
-                // 在流结束时保存完整的助手消息
-                if (fullAssistantMessage) {
-                  await prisma.message.create({
-                    data: {
-                      sessionId: params.id,
-                      role: "assistant",
-                      content: fullAssistantMessage
-                    }
-                  });
+        try {
+          let buffer = '';
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              // 在流结束时保存消息和生成标题
+              await prisma.message.create({
+                data: {
+                  sessionId: params.id,
+                  role: "assistant",
+                  content: fullAssistantMessage
                 }
-                break;
+              });
+
+              // 检查是否需要生成标题
+              const messageCount = await prisma.message.count({
+                where: { sessionId: params.id }
+              });
+
+              if (messageCount === 2) {
+                fetch(`/api/chat/${params.id}/generate-title`, {
+                  method: 'POST'
+                }).catch(console.error);
               }
+              
+              break;
+            }
 
-              buffer += new TextDecoder().decode(value);
-              const lines = buffer.split('\n');
-              buffer = lines.pop() || '';
+            buffer += new TextDecoder().decode(value);
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
 
-              for (const line of lines) {
-                const trimmedLine = line.trim();
-                if (!trimmedLine || trimmedLine === 'data: [DONE]') continue;
-                
-                if (trimmedLine.startsWith('data: ')) {
-                  try {
-                    const jsonStr = trimmedLine.slice(6);
-                    const json = JSON.parse(jsonStr);
-                    const content = json.choices?.[0]?.delta?.content || '';
-                    if (content) {
-                      fullAssistantMessage += content; // 累积助手的回复
-                      controller.enqueue(content);
-                    }
-                  } catch (error) {
-                    console.warn('JSON parse error:', { line: trimmedLine, error });
-                    continue;
+            for (const line of lines) {
+              const trimmedLine = line.trim();
+              if (!trimmedLine || trimmedLine === 'data: [DONE]') continue;
+              
+              if (trimmedLine.startsWith('data: ')) {
+                try {
+                  const jsonStr = trimmedLine.slice(6);
+                  const json = JSON.parse(jsonStr);
+                  const content = json.choices?.[0]?.delta?.content || '';
+                  if (content) {
+                    fullAssistantMessage += content;
+                    controller.enqueue(content);
                   }
+                } catch (error) {
+                  console.warn('JSON parse error:', { line: trimmedLine, error });
+                  continue;
                 }
               }
             }
-            
-            controller.close();
-          } catch (e) {
-            console.error('Stream processing error:', e);
-            controller.error(e);
           }
-        }
-      }),
-      {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
+          
+          controller.close();
+        } catch (e) {
+          console.error('Stream processing error:', e);
+          controller.error(e);
         }
       }
-    );
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      }
+    });
+
   } catch (e) {
     console.error('Chat API error:', e);
     throw error(500, 'Internal server error');
@@ -184,7 +224,7 @@ export async function POST({ request, params }) {
 }
 
 export const GET: RequestHandler = async ({ params, locals }) => {
-  const { user } = await locals.auth.validateUser();
+  const { user } =  locals.auth;
   if (!user) throw error(401, "Unauthorized");
 
   const messages = await prisma.message.findMany({

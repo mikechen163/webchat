@@ -1,6 +1,13 @@
-<script>
+<script lang="ts">
   import "../app.css";
   import { toast } from "$lib/components/ui/toast";
+  import { sessionsStore } from '$lib/stores/sessions';
+  import { invalidate } from '$app/navigation';
+  
+  // 提供invalidate方法给store
+  $sessionsStore.invalidate = () => {
+    invalidate('chats:list');
+  };
 </script>
 
 <div class="min-h-screen bg-background font-sans antialiased">
