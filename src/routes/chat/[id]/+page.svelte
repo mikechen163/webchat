@@ -58,39 +58,61 @@
     if (!messageInput.trim() || sending) return;
     
     sending = true;
-    const response = await fetch(`/api/chat/${$page.params.id}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: messageInput })
-    });
+    const userMessage = messageInput;
+    messageInput = "";
+    localStorage.removeItem(`draft_${$page.params.id}`);
 
-    if (response.body) {
-      const reader = response.body.getReader();
-      let partialMessage = "";
+    try {
+      // Add user message to the UI
+      messages = [...messages, { role: "user", content: userMessage }];
       
-      messages = [...messages, 
-        { role: "user", content: messageInput },
-        { role: "assistant", content: "" }
-      ];
-      messageInput = "";
+      // Call the server endpoint
+      const response = await fetch(`/api/chat/${$page.params.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: userMessage })
+      });
 
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      // Add empty assistant message
+      messages = [...messages, { role: "assistant", content: "" }];
+
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+
+      let assistantResponse = "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         
         const chunk = new TextDecoder().decode(value);
-        partialMessage += chunk;
+        assistantResponse += chunk;
         
+        // Update the last message (assistant's response)
         messages = messages.map((msg, i) => {
           if (i === messages.length - 1) {
-            return { ...msg, content: partialMessage };
+            return { ...msg, content: assistantResponse };
           }
           return msg;
         });
       }
+
+    } catch (e) {
+      console.error("Chat error:", e);
+      toast({
+        title: "Error",
+        description: "Failed to send message",
+        type: "error"
+      });
+      // Remove the assistant message if there was an error
+      messages = messages.slice(0, -1);
+    } finally {
+      sending = false;
     }
-    
-    sending = false;
   }
 
   async function updateTitle() {
