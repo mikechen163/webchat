@@ -1,5 +1,7 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
+  
+  let messages: Array<{ role: string; content: string }> = [];
 </script>
 
 <div class="flex-1 relative flex flex-col h-full">
