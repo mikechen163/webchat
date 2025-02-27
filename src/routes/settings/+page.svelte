@@ -41,10 +41,24 @@
       );
     }
   }
+
+  async function handleLogout() {
+    const response = await fetch("/auth/logout", {
+      method: "POST"
+    });
+    if (response.ok) {
+      window.location.href = "/auth/login";
+    }
+  }
 </script>
 
 <div class="container mx-auto py-8 max-w-4xl">
-  <h1 class="text-2xl font-bold mb-6">Settings</h1>
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold">Settings</h1>
+    <Button variant="outline" on:click={handleLogout}>
+      Logout
+    </Button>
+  </div>
 
   {#if isAdmin}
     <div class="bg-white p-6 rounded-lg shadow mb-6">
