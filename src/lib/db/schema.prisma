@@ -19,11 +19,10 @@ model User {
 }
 
 model AuthSession {
-  id             String   @id
-  userId         String
-  active_expires BigInt
-  idle_expires   BigInt
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

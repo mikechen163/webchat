@@ -47,13 +47,11 @@ export const actions: Actions = {
         });
       }
 
-      const session = await auth.createSession({
-        userId: user.id,
-        attributes: {},
-        active_expires: BigInt(Date.now()) + BigInt(24 * 60 * 60 * 1000), // 24 hours
-        idle_expires: BigInt(Date.now()) + BigInt(7 * 24 * 60 * 60 * 1000) // 7 days
-        
-      });
+      const session = await auth.createSession(
+        user.id,
+       
+        {}
+      );
 
       const sessionCookie = auth.createSessionCookie(session);
       throw redirect(302, "/chat", {
