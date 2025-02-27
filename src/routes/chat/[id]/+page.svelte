@@ -202,90 +202,99 @@
   }
 </script>
 
-<div class="flex flex-col h-full">
-  <!-- Header -->
-  <div class="border-b p-4 flex items-center justify-between">
-    {#if editingTitle}
-      <form 
-        on:submit|preventDefault={updateTitle}
-        class="flex items-center gap-2"
-      >
-        <Input
-          bind:value={newTitle}
-          class="w-64"
-          autofocus
-          on:blur={() => editingTitle = false}
-        />
-      </form>
-    {:else}
-      <button 
-        type="button"
-        class="text-xl font-semibold hover:text-gray-600 text-left"
-        on:click={() => editingTitle = true}
-        on:keydown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            editingTitle = true;
-          }
-        }}
-      >
-        {data.session.title}
-      </button>
+<div class="w-full h-screen">
+  <div class="flex flex-col h-full">
+    <!-- Header -->
+    <div class="border-b">
+      <div class="max-w-[1000px] mx-auto p-4 flex items-center justify-between">
+        {#if editingTitle}
+          <form 
+            on:submit|preventDefault={updateTitle}
+            class="flex items-center gap-2"
+          >
+            <Input
+              bind:value={newTitle}
+              class="w-64"
+              autofocus
+              on:blur={() => editingTitle = false}
+            />
+          </form>
+        {:else}
+          <button 
+            type="button"
+            class="text-xl font-semibold hover:text-gray-600 text-left"
+            on:click={() => editingTitle = true}
+            on:keydown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                editingTitle = true;
+              }
+            }}
+          >
+            {data.session.title}
+          </button>
+        {/if}
+        
+        <div class="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            on:click={exportChat}
+          >
+            Export Chat
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            on:click={clearHistory}
+          >
+            Clear History
+          </Button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div 
+      class="flex-1 overflow-y-auto min-h-0"
+      bind:this={messageContainer}
+      on:scroll={handleScroll}
+    >
+      <div class="max-w-[1000px] mx-auto p-4 space-y-4">
+        {#each messages as message (message.id)}
+          <ChatBubble 
+            role={message.role}
+            content={message.content}
+            timestamp={message.createdAt}
+          />
+        {/each}
+      </div>
+    </div>
+
+    <!-- Typing Indicator -->
+    {#if sending}
+      <div class="shrink-0">
+        <div class="max-w-[1000px] mx-auto px-4 py-2 text-sm text-gray-500">
+          Bot is typing...
+        </div>
+      </div>
     {/if}
-    
-    <div class="flex items-center gap-2">
-      <Button 
-        variant="outline" 
-        size="sm"
-        on:click={exportChat}
-      >
-        Export Chat
-      </Button>
-      <Button 
-        variant="outline" 
-        size="sm"
-        on:click={clearHistory}
-      >
-        Clear History
-      </Button>
+
+    <!-- Input -->
+    <div class="border-t shrink-0">
+      <div class="max-w-[1000px] mx-auto p-4">
+        <form on:submit|preventDefault={handleSubmit} class="flex gap-2">
+          <Input
+            type="text"
+            bind:value={messageInput}
+            placeholder="Type a message..."
+            disabled={sending}
+            class="flex-1"
+          />
+          <Button type="submit" disabled={sending}>
+            {sending ? "Sending..." : "Send"}
+          </Button>
+        </form>
+      </div>
     </div>
-  </div>
-
-  <!-- Messages -->
-  <div 
-    class="flex-1 overflow-y-auto p-4 space-y-4"
-    bind:this={messageContainer}
-    on:scroll={handleScroll}
-  >
-    {#each messages as message (message.id)}
-      <ChatBubble 
-        role={message.role}
-        content={message.content}
-        timestamp={message.createdAt}
-      />
-    {/each}
-  </div>
-
-  <!-- Typing Indicator -->
-  {#if sending}
-    <div class="px-4 py-2 text-sm text-gray-500">
-      Bot is typing...
-    </div>
-  {/if}
-
-  <!-- Input -->
-  <div class="border-t p-4" style="height: 30px;">
-    <form on:submit|preventDefault={handleSubmit} class="flex gap-2">
-      <Input
-        type="text"
-        bind:value={messageInput}
-        placeholder="Type a message..."
-        disabled={sending}
-        class="flex-1"
-        style="height: 30px;"
-      />
-      <Button type="submit" disabled={sending}>
-        {sending ? "Sending..." : "Send"}
-      </Button>
-    </form>
   </div>
 </div>
