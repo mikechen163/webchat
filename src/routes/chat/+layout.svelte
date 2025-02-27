@@ -8,6 +8,7 @@
   import { sessionsStore } from '$lib/stores/sessions';
   import { goto, invalidate } from "$app/navigation";
   import ConfirmDialog from "$lib/components/ui/confirm-dialog.svelte";
+  import { onMount } from 'svelte';
 
   let editingSessionId: string | null = null;
   let newTitle = "";
@@ -107,14 +108,16 @@
 
 <svelte:window on:click={handleClickOutside} />
 
-<div class="flex h-screen max-h-[95%]">
+<div class="h-screen flex">
   <!-- Sidebar -->
-  <div class="w-[240px] bg-[#f7f7f7] p-4 flex flex-col"> <!-- 移除了 text-white -->
-    <Button variant="outline" class="mb-4 w-full" href="/chat/new">
-      New Chat
-    </Button>
+  <div class="w-[240px] bg-[#f7f7f7] flex flex-col">
+    <div class="p-4">
+      <Button variant="outline" class="w-full" href="/chat/new">
+        New Chat
+      </Button>
+    </div>
     
-    <nav class="flex-1 overflow-y-auto">
+    <nav class="flex-1 overflow-y-auto px-4 min-h-0">
       {#each $page.data.sessions || [] as session}
         <a 
           href="/chat/{session.id}" 
@@ -131,7 +134,7 @@
       {/each}
     </nav>
 
-    <div class="mt-auto">
+    <div class="p-4">
       <Button variant="ghost" class="w-full" href="/settings">
         Settings
       </Button>
@@ -139,12 +142,8 @@
   </div>
 
   <!-- Main Content with loading indicator -->
-  <div class="flex-1 flex flex-col relative">
-    {#if $navigating}
-      <div class="absolute inset-0 bg-white/50 z-10 flex items-center justify-center">
-        <div class="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
-      </div>
-    {/if}
+  <div class="flex-1 flex flex-col relative h-full">
+    <!-- 内容部分 (消息和输入区域) 由子页面填充 -->
     <slot />
   </div>
 </div>

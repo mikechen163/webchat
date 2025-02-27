@@ -10,7 +10,7 @@
   };
 </script>
 
-<div class="min-h-screen bg-background font-sans antialiased">
+<div class="h-[100vh] overflow-hidden bg-background font-sans antialiased">
   <slot />
 </div>
 
