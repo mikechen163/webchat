@@ -4,7 +4,8 @@ import type { LayoutServerLoad } from "./$types";
 const prisma = new PrismaClient();
 
 export const load: LayoutServerLoad = async ({ locals }) => {
-  const { user } = await locals.auth.validateUser();
+  const { user } = locals.auth;
+  
   if (!user) return { sessions: [] };
 
   const sessions = await prisma.session.findMany({
