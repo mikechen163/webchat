@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
+  import { goto } from "$app/navigation";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
@@ -23,6 +24,8 @@
         loading = false;
         if (result.type === 'error') {
           error = result.error.message;
+        } else if (result.data?.success) {
+          await goto('/chat');
         }
       };
     }}

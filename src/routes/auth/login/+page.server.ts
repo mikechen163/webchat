@@ -1,5 +1,5 @@
 import { auth } from "$lib/server/auth";
-import { fail, redirect } from "@sveltejs/kit";
+import { fail } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
@@ -55,7 +55,7 @@ export const actions: Actions = {
 
       const sessionCookie = auth.createSessionCookie(session.id);
       cookies.set(sessionCookie.name, sessionCookie.value, { ...sessionCookie.attributes, path: '/' });
-      throw redirect(302, "/chat");
+      return { success: true }; // Return success instead of redirect
     } catch (error) {
       console.error(error);
       return fail(500, {
