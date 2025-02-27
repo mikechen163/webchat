@@ -6,20 +6,24 @@
 
   let loading = false;
   let error: string | null = null;
+
+  function handleSubmit() {
+    loading = true;
+    error = null;
+    
+    return async ({ result }) => {
+      loading = false;
+      if (result.type === 'failure') {
+        error = result.data?.message || 'Registration failed';
+      }
+    };
+  }
 </script>
 
 <div class="container mx-auto max-w-md mt-10">
   <h1 class="text-2xl font-bold mb-5">Register</h1>
   
-  <form method="POST" use:enhance={() => {
-    loading = true;
-    return async ({ result }) => {
-      loading = false;
-      if (result.type === 'error') {
-        error = result.error.message;
-      }
-    };
-  }}>
+  <form method="POST" use:enhance={handleSubmit}>
     <div class="space-y-4">
       <div class="space-y-2">
         <Label for="email">Email</Label>
@@ -31,8 +35,13 @@
         <Input type="password" name="password" id="password" required />
       </div>
 
+      <div class="space-y-2">
+        <Label for="registrationCode">Registration Code</Label>
+        <Input type="text" name="registrationCode" id="registrationCode" required />
+      </div>
+
       {#if error}
-        <p class="text-red-500">{error}</p>
+        <p class="text-red-500 text-sm mt-2">{error}</p>
       {/if}
 
       <Button type="submit" disabled={loading}>
