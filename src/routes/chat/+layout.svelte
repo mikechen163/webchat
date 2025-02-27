@@ -7,6 +7,7 @@
   import { MoreHorizontal } from "lucide-svelte";
   import { sessionsStore } from '$lib/stores/sessions';
   import { goto, invalidate } from "$app/navigation";
+  import ConfirmDialog from "$lib/components/ui/confirm-dialog.svelte";
 
   let editingSessionId: string | null = null;
   let newTitle = "";
@@ -15,6 +16,8 @@
   let contextMenuY = 0;
   let showContextMenu = false;
   let selectedSessionId: string | null = null;
+  let showConfirmDialog = false;
+  let confirmDialogPosition = { x: 0, y: 0 };
 
   function handleContextMenu(event: MouseEvent, sessionId: string) {
     event.preventDefault();
@@ -37,8 +40,6 @@
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this chat?")) return;
-
     const response = await fetch(`/api/chat/${id}`, {
       method: "DELETE"
     });
@@ -46,7 +47,7 @@
     if (response.ok) {
       $sessionsStore.invalidate();
       if ($page.params.id === id) {
-        window.location.href = "/";
+        window.location.href = "/chat";
       }
     }
   }
@@ -82,6 +83,25 @@
     } catch (error) {
       console.error('Navigation error:', error);
     }
+  }
+
+  function handleClickDelete() {
+    if (!selectedSessionId) return;
+    showConfirmDialog = true;
+    // 将确认对话框定位在右键菜单位置附近
+    confirmDialogPosition = {
+      x: contextMenuX,
+      y: contextMenuY
+    };
+    showContextMenu = false; // 隐藏右键菜单
+  }
+
+  async function confirmDelete() {
+    if (!selectedSessionId) return;
+    const sessionToDelete = selectedSessionId; // 保存当前选中的会话ID
+    showConfirmDialog = false; // 先隐藏确认对话框
+    await handleDelete(sessionToDelete); // 执行删除操作
+    selectedSessionId = null; // 重置选中的会话ID
   }
 </script>
 
@@ -137,14 +157,22 @@
     <button
       type="button"
       class="w-full text-left px-3 py-1.5 text-sm text-red-500 hover:bg-gray-100"
-      on:click={() => {
-        if (selectedSessionId && confirm("Are you sure you want to delete this chat?")) {
-          handleDelete(selectedSessionId);
-        }
-        hideContextMenu();
-      }}
+      on:click={handleClickDelete}
     >
       Delete Chat
     </button>
   </div>
+{/if}
+
+{#if showConfirmDialog}
+  <ConfirmDialog
+    x={confirmDialogPosition.x}
+    y={confirmDialogPosition.y}
+    message="Are you sure you want to delete this chat?"
+    onConfirm={confirmDelete}
+    onCancel={() => {
+      showConfirmDialog = false;
+      hideContextMenu();
+    }}
+  />
 {/if}
