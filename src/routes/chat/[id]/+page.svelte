@@ -179,7 +179,7 @@
   }
 </script>
 
-<div class="flex flex-col h-full">
+<div class="flex flex-col max-h-[99%]">
   <!-- Header -->
   <div class="border-b p-4 flex items-center justify-between">
     {#if editingTitle}
