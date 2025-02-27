@@ -39,11 +39,11 @@ export const actions: Actions = {
         }
       });
 
-      const session = await auth.createSession(user.id, {});
-      const sessionCookie = auth.createSessionCookie(session);
-      cookies.set(sessionCookie.name, sessionCookie.value, sessionCookie.attributes);
-
-      throw redirect(303, "/auth/login");
+      //const session = await auth.createSession(user.id, {});
+      //const sessionCookie = auth.createSessionCookie(session);
+      //cookies.set(sessionCookie.name, sessionCookie.value, sessionCookie.attributes);
+      return { success: true };
+      //throw redirect(303, "/auth/login");
     } catch (error) {
       if (error instanceof Response) {
         throw error; // Rethrow redirect

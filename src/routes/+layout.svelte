@@ -10,6 +10,9 @@
   };
 </script>
 
+<!-- src/routes/+page.svelte -->
+<div class="bg-blue-500 text-white p-4">Tailwind 测试</div>
+
 <div class="h-[100vh] overflow-hidden bg-background font-sans antialiased">
   <slot />
 </div>

@@ -3,11 +3,8 @@
 export default {
   darkMode: ["class"],
   content: [
-    './src/**/*.{html,js,svelte,ts}',
-    './pages/**/*.{ts,tsx}',
-    './components/**/*.{ts,tsx}',
-    './app/**/*.{ts,tsx}',
-    './src/**/*.{ts,tsx}',
+    './src/**/*.{html,js,svelte,ts}', // ✅ 修正路径
+    './index.html',
   ],
   theme: {
     extend: {

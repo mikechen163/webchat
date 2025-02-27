@@ -342,7 +342,7 @@
           bind:value={messageInput}
           placeholder="Send a Message"
           disabled={sending}
-          class="flex-1 h-[48px] rounded-[24px] text-lg px-6 bg-white border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          class="flex-1 h-[48px] rounded-[24px] text-2xl px-6 bg-white border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         />
         <Button 
           type="submit" 
