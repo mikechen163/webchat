@@ -179,7 +179,7 @@
   }
 </script>
 
-<div class="flex flex-col max-h-[99%]">
+<div class="flex flex-col h-full">
   <!-- Header -->
   <div class="border-b p-4 flex items-center justify-between">
     {#if editingTitle}
@@ -244,7 +244,7 @@
   {/if}
 
   <!-- Input -->
-  <div class="border-t p-4">
+  <div class="border-t p-4" style="height: 30px;">
     <form on:submit|preventDefault={handleSubmit} class="flex gap-2">
       <Input
         type="text"
@@ -252,6 +252,7 @@
         placeholder="Type a message..."
         disabled={sending}
         class="flex-1"
+        style="height: 30px;"
       />
       <Button type="submit" disabled={sending}>
         {sending ? "Sending..." : "Send"}

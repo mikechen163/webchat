@@ -5,7 +5,7 @@
 
 <div class="flex h-screen max-h-[95%]">
   <!-- Sidebar -->
-  <div class="w-[240px]  bg-[#e5e5e5] text-white p-4 flex flex-col">
+  <div class="w-[240px]  bg-[#f7f7f7] text-white p-4 flex flex-col">
     <Button variant="outline" class="mb-4 w-full" href="/chat/new">
       New Chat
     </Button>
