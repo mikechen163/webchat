@@ -6,7 +6,7 @@
   import { toast } from "$lib/components/ui/toast";
   import { MoreHorizontal } from "lucide-svelte";
   import { sessionsStore } from '$lib/stores/sessions';
-  import { goto } from "$app/navigation";
+  import { goto, invalidate } from "$app/navigation";
 
   let editingSessionId: string | null = null;
   let newTitle = "";
@@ -69,12 +69,18 @@
 
   async function handleSessionClick(event: MouseEvent, sessionId: string) {
     event.preventDefault();
-    // 如果点击的是当前会话，强制刷新
-    if (sessionId === $page.params.id) {
-      window.location.href = `/chat/${sessionId}`;
-    } else {
-      // 否则使用 goto 进行导航
+    
+    try {
+      // 首先导航到新路由
       await goto(`/chat/${sessionId}`);
+      // 然后强制重新获取数据
+      await invalidate('app:session');
+      // 如果是同一会话，强制刷新页面
+      if (sessionId === $page.params.id) {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Navigation error:', error);
     }
   }
 </script>

@@ -24,6 +24,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
   return {
     session,
-    messages: session.messages
+    messages: session.messages,
+    // 添加时间戳以防止响应被缓存
+    timestamp: new Date().toISOString()
   };
 };
