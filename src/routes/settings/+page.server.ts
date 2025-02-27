@@ -5,7 +5,7 @@ import type { PageServerLoad } from "./$types";
 const prisma = new PrismaClient();
 
 export const load: PageServerLoad = async ({ locals }) => {
-  const { user } = await locals.auth.validateUser();
+  const { user } = locals.auth;
   if (!user) throw error(401, "Unauthorized");
 
   const models = await prisma.modelConfig.findMany({

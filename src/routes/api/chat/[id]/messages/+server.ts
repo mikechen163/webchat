@@ -5,7 +5,7 @@ import type { RequestHandler } from "./$types";
 const prisma = new PrismaClient();
 
 export const DELETE: RequestHandler = async ({ params, locals }) => {
-  const { user } = await locals.auth.validateUser();
+  const { user } = locals.auth;
   if (!user) throw error(401, "Unauthorized");
 
   await prisma.message.deleteMany({
