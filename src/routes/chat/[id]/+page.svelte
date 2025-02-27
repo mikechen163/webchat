@@ -63,10 +63,18 @@
     localStorage.removeItem(`draft_${$page.params.id}`);
 
     try {
-      // Add user message to the UI
-      messages = [...messages, { role: "user", content: userMessage }];
+      // 生成唯一ID用于消息跟踪
+      const tempUserMsgId = Date.now().toString();
+      const tempAssistantMsgId = (Date.now() + 1).toString();
       
-      // Call the server endpoint
+      // 添加用户消息
+      messages = [...messages, { 
+        id: tempUserMsgId,
+        role: "user", 
+        content: userMessage,
+        createdAt: new Date()
+      }];
+      
       const response = await fetch(`/api/chat/${$page.params.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -77,10 +85,15 @@
         throw new Error(`Server error: ${response.status}`);
       }
 
-      // Add empty assistant message
-      messages = [...messages, { role: "assistant", content: "" }];
+      // 添加空的助手消息
+      messages = [...messages, { 
+        id: tempAssistantMsgId,
+        role: "assistant", 
+        content: "",
+        createdAt: new Date()
+      }];
 
-      // Handle streaming response
+      // 处理流式响应
       const reader = response.body?.getReader();
       if (!reader) throw new Error('No response stream');
 
@@ -92,9 +105,9 @@
         const chunk = new TextDecoder().decode(value);
         assistantResponse += chunk;
         
-        // Update the last message (assistant's response)
-        messages = messages.map((msg, i) => {
-          if (i === messages.length - 1) {
+        // 更新助手消息内容
+        messages = messages.map(msg => {
+          if (msg.id === tempAssistantMsgId) {
             return { ...msg, content: assistantResponse };
           }
           return msg;
@@ -108,7 +121,7 @@
         description: "Failed to send message",
         type: "error"
       });
-      // Remove the assistant message if there was an error
+      // 发生错误时删除助手消息
       messages = messages.slice(0, -1);
     } finally {
       sending = false;
