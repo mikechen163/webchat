@@ -6,7 +6,7 @@ import { dev } from "$app/environment";
 const client = new PrismaClient();
 
 const adapter = new PrismaAdapter(
-  client.authSession,
+  client.authSession, // Use authSession instead of session
   client.key
 );
 
