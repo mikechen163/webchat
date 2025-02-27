@@ -3,6 +3,7 @@ import { fail } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
+import { redirect } from '@sveltejs/kit';
 
 const prisma = new PrismaClient();
 
@@ -64,3 +65,7 @@ export const actions: Actions = {
     }
   }
 };
+
+function redirect(arg0: number, arg1: string) {
+  throw new Error("Function not implemented.");
+}
