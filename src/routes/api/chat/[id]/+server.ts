@@ -67,6 +67,32 @@ export async function POST({ request, params }) {
       throw new Error('Missing OpenAI configuration');
     }
 
+    // 获取历史消息
+    const history = await prisma.message.findMany({
+      where: { sessionId: params.id },
+      orderBy: { createdAt: 'asc' },
+      take: MAX_HISTORY_MESSAGES,
+      select: {
+        role: true,
+        content: true
+      }
+    });
+
+    // 保存用户消息
+    await prisma.message.create({
+      data: {
+        sessionId: params.id,
+        role: "user",
+        content
+      }
+    });
+
+    // 准备发送给 OpenAI 的消息数组
+    const messages = [
+      ...history,
+      { role: 'user', content }
+    ];
+
     const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -75,7 +101,7 @@ export async function POST({ request, params }) {
       },
       body: JSON.stringify({
         model: OPENAI_MODEL,
-        messages: [{ role: 'user', content }],
+        messages,
         stream: true,
       }),
     });
@@ -83,6 +109,8 @@ export async function POST({ request, params }) {
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${response.status}`);
     }
+
+    let fullAssistantMessage = ''; // 用于存储完整的助手回复
 
     return new Response(
       new ReadableStream({
@@ -95,14 +123,23 @@ export async function POST({ request, params }) {
             
             while (true) {
               const { done, value } = await reader.read();
-              if (done) break;
+              if (done) {
+                // 在流结束时保存完整的助手消息
+                if (fullAssistantMessage) {
+                  await prisma.message.create({
+                    data: {
+                      sessionId: params.id,
+                      role: "assistant",
+                      content: fullAssistantMessage
+                    }
+                  });
+                }
+                break;
+              }
 
-              // 将新数据添加到缓冲区
               buffer += new TextDecoder().decode(value);
-              
-              // 处理缓冲区中的完整行
               const lines = buffer.split('\n');
-              buffer = lines.pop() || ''; // 保留最后一个不完整的行
+              buffer = lines.pop() || '';
 
               for (const line of lines) {
                 const trimmedLine = line.trim();
@@ -110,10 +147,11 @@ export async function POST({ request, params }) {
                 
                 if (trimmedLine.startsWith('data: ')) {
                   try {
-                    const jsonStr = trimmedLine.slice(6); // 移除 'data: '
+                    const jsonStr = trimmedLine.slice(6);
                     const json = JSON.parse(jsonStr);
                     const content = json.choices?.[0]?.delta?.content || '';
                     if (content) {
+                      fullAssistantMessage += content; // 累积助手的回复
                       controller.enqueue(content);
                     }
                   } catch (error) {
