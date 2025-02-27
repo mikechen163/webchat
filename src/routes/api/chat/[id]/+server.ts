@@ -98,13 +98,36 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`;
   }
 }
 
-export async function POST({ request, params, fetch }) {
+export async function POST({ request, params, fetch }) {  // Add fetch to destructured params
   try {
-    const { content } = await request.json();
+    const { content, modelId } = await request.json();
+    //console.log('Received request:', { content, modelId });
     
-    if (!OPENAI_BASE_URL || !OPENAI_API_KEY) {
-      throw new Error('Missing OpenAI configuration');
+    // 获取指定的模型配置
+    let modelConfig = await prisma.modelConfig.findFirst({
+      where: { 
+        id: modelId,
+        enabled: true 
+      }
+    });
+
+    
+    if (!modelConfig) {
+      // If no specific model found, try to get default model
+      const defaultModel = await prisma.modelConfig.findFirst({
+        where: { enabled: true }
+      });
+      
+      console.log('Falling back to default model:', defaultModel);
+      
+      if (!defaultModel) {
+        throw error(400, "No valid model configuration found");
+      }
+      
+      modelConfig = defaultModel;
     }
+
+    
 
     // 获取历史消息并保存用户消息
     const history = await prisma.message.findMany({
@@ -125,14 +148,15 @@ export async function POST({ request, params, fetch }) {
     const messages = [...history, { role: 'user', content }];
     let fullAssistantMessage = '';
     
-    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+    console.log('baseurl=', modelConfig.baseUrl, 'model=', modelConfig.model);
+     const response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${modelConfig.apiKey}`,
       },
       body: JSON.stringify({
-        model: OPENAI_MODEL,
+        model: modelConfig.model,
         messages,
         stream: true,
       }),
@@ -168,6 +192,7 @@ export async function POST({ request, params, fetch }) {
               });
 
               if (messageCount === 2) {
+                // Use the provided fetch instead of global fetch
                 fetch(`/api/chat/${params.id}/generate-title`, {
                   method: 'POST'
                 }).catch(console.error);

@@ -8,7 +8,9 @@
   import { toast } from "$lib/components/ui/toast";
   import { onDestroy } from "svelte";
   import { sessionsStore } from '$lib/stores/sessions';
-  import { ArrowUp } from "lucide-svelte";  // 添加这行引入
+  import { ArrowUp } from "lucide-svelte";
+  import ModelSelector from "$lib/components/ModelSelector.svelte";
+  import { selectedModel } from "$lib/stores/selectedModel";
 
   export let data;
   let messages = data.messages || [];
@@ -27,13 +29,10 @@
   // 添加工具栏状态控制
   let showTools = false;
   
-  // 添加工具选项
+  // 修改工具选项
   const tools = [
-    { id: 'thinking', label: 'Thinking ', icon: '🤔' },
-    { id: 'websearch', label: 'Web Search', icon: '🌐' }
-   // { id: 'tools', label: 'Tools', icon: '🛠' }, 
-   // { id: 'image', label: 'Image', icon: '🖼' },
-  
+    { id: 'thinking', label: 'Thinking', icon: '🤔' },
+    { id: 'websearch', label: 'Web Search', icon: '🌐' },
   ];
 
   // 添加工具选择处理函数
@@ -100,7 +99,10 @@
       const response = await fetch(`/api/chat/${$page.params.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: userMessage })
+        body: JSON.stringify({ 
+          content: userMessage,
+          modelId: $selectedModel?.id 
+        })
       });
 
       if (!response.ok) {
@@ -303,7 +305,7 @@
     <!-- 修改 Input 部分 -->
   <div class="border-t shrink-0">
     <div class="max-w-[1000px] mx-auto p-4">
-      <!-- 添加工具栏 -->
+      <!-- 修改工具栏 -->
       <div class="mb-2 flex items-center gap-2 text-sm text-gray-600">
         {#each tools as tool}
           <button
@@ -314,6 +316,7 @@
             <span>{tool.label}</span>
           </button>
         {/each}
+        <ModelSelector />
       </div>
       
       <!-- 消息输入表单 -->
@@ -339,10 +342,7 @@
         </Button>
       </form>
 
-      <!-- 添加提示文本 -->
-      <div class="mt-2 text-xs text-gray-400 text-center">
-        Thinking (QwQ) is a preview model and is still being updated.
-      </div>
+     
     </div>
   </div>
 

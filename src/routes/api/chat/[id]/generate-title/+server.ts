@@ -7,32 +7,22 @@ const prisma = new PrismaClient();
 
 export const POST: RequestHandler = async ({ params }) => {
   try {
-    // 获取最近的消息对
+    // Get chat messages
     const messages = await prisma.message.findMany({
       where: { sessionId: params.id },
-      orderBy: { createdAt: 'desc' },
-      take: 2,
-      select: {
-        role: true,
-        content: true
-      }
+      orderBy: { createdAt: 'asc' },
+      select: { role: true, content: true }
     });
 
-    if (messages.length < 2) {
-      throw error(400, "Not enough messages for title generation");
+    if (messages.length === 0) {
+      return new Response(null, { status: 204 });
     }
 
-    const prompt = `### Task:
-Generate a concise, 3-5 word title with an emoji summarizing the chat history.
-### Guidelines:
-- The title should clearly represent the main theme or subject of the conversation.
-- Use emojis that enhance understanding of the topic, but avoid quotation marks or special formatting.
-- Write the title in the chat's primary language; default to English if multilingual.
-- Prioritize accuracy over excessive creativity; keep it clear and simple.
-### Output:
-JSON format: { "title": "your concise title here" }
-### Chat History:
-${messages.reverse().map(m => `${m.role}: ${m.content}`).join('\n')}`;
+    // Generate title using OpenAI
+    const prompt = `Generate a concise, 3-5 word title with an emoji summarizing this chat:
+${messages.map(m => `${m.role}: ${m.content}`).join('\n')}
+
+Response format: { "title": "emoji title here" }`;
 
     const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
       method: 'POST',
@@ -52,19 +42,20 @@ ${messages.reverse().map(m => `${m.role}: ${m.content}`).join('\n')}`;
     }
 
     const data = await response.json();
-    const titleResponse = JSON.parse(data.choices[0].message.content);
-
-    if (titleResponse?.title) {
+    try {
+      const { title } = JSON.parse(data.choices[0].message.content);
+      
+      // Update session title
       await prisma.session.update({
         where: { id: params.id },
-        data: { title: titleResponse.title }
+        data: { title }
       });
+
+      return new Response(null, { status: 204 });
+    } catch (e) {
+      console.error('Failed to parse title response:', e);
+      return new Response(null, { status: 204 });
     }
-
-    return new Response(JSON.stringify({ title: titleResponse.title }), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-
   } catch (e) {
     console.error('Title generation error:', e);
     throw error(500, 'Failed to generate title');

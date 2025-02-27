@@ -24,3 +24,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   // Hide API key in response
   return json({ ...newModel, apiKey: "••••••••" });
 };
+
+export const GET: RequestHandler = async () => {
+  const models = await prisma.modelConfig.findMany({
+    select: {
+      id: true,
+      name: true,
+      model: true,
+      enabled: true,
+      baseUrl: true
+    }
+  });
+
+  // Don't expose API keys in response
+  return json(models);
+};
