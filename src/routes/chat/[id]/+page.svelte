@@ -8,7 +8,7 @@
   import { toast } from "$lib/components/ui/toast";
   import { onDestroy } from "svelte";
   import { sessionsStore } from '$lib/stores/sessions';
-  import { ArrowUp } from "lucide-svelte";
+  import { ArrowUp, Trash2 } from "lucide-svelte";
   import ModelSelector from "$lib/components/ModelSelector.svelte";
   import { selectedModel } from "$lib/stores/selectedModel";
 
@@ -209,40 +209,48 @@
     <!-- Header -->
     <div class="border-b">
       <div class="max-w-[1000px] mx-auto p-4 flex items-center justify-between">
-        {#if editingTitle}
-          <form 
-            on:submit|preventDefault={updateTitle}
-            class="flex items-center gap-2"
-          >
-            <Input
-              bind:value={newTitle}
-              class="w-64"
-              autofocus
-              on:blur={() => editingTitle = false}
-            />
-          </form>
-        {:else}
-          <button 
-            type="button"
-            class="text-xl font-semibold hover:text-gray-600 text-left"
-            on:click={() => editingTitle = true}
-            on:keydown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                editingTitle = true;
-              }
-            }}
-          >
-            {data.session.title}
-          </button>
-        {/if}
+        <div class="w-10">
+          <!-- Spacer element to balance the header -->
+        </div>
         
-        <div class="flex items-center gap-2">
+        <div class="flex-1 flex justify-center">
+          {#if editingTitle}
+            <form 
+              on:submit|preventDefault={updateTitle}
+              class="flex items-center gap-2"
+            >
+              <Input
+                bind:value={newTitle}
+                class="w-64"
+                autofocus
+                on:blur={() => editingTitle = false}
+              />
+            </form>
+          {:else}
+            <button 
+              type="button"
+              class="text-xl font-semibold hover:text-gray-600 text-center"
+              on:click={() => editingTitle = true}
+              on:keydown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  editingTitle = true;
+                }
+              }}
+            >
+              {data.session.title}
+            </button>
+          {/if}
+        </div>
+        
+        <div>
           <Button 
-            variant="outline" 
-            size="sm"
+            variant="ghost" 
+            size="icon"
+            title="Clear History"
             on:click={clearHistory}
+            class="h-9 w-9"
           >
-            Clear History
+            <Trash2 class="h-5 w-5" />
           </Button>
         </div>
       </div>
