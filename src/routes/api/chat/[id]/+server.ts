@@ -248,24 +248,38 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
   }
 }
 
-export const GET: RequestHandler = async ({ params, locals }) => {
-  const { user } =  locals.auth;
-  if (!user) throw error(401, "Unauthorized");
-
-  const messages = await prisma.message.findMany({
-    where: { sessionId: params.id },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      role: true,
-      content: true,
-      createdAt: true
+export const GET = async ({ params, locals }) => {
+  try {
+    // Get session data
+    const session = await prisma.session.findUnique({
+      where: { id: params.id }
+    });
+    
+    if (!session) {
+      throw error(404, "Session not found");
     }
-  });
-
-  return new Response(JSON.stringify(messages), {
-    headers: { "Content-Type": "application/json" }
-  });
+    
+    // Get messages
+    const messages = await prisma.message.findMany({
+      where: { sessionId: params.id },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        role: true,
+        content: true,
+        createdAt: true
+      }
+    });
+    
+    // Return both session and messages
+    return json({
+      session,
+      messages
+    });
+  } catch (e) {
+    console.error('Error fetching chat:', e);
+    throw error(500, 'Failed to fetch chat data');
+  }
 };
 
 export const DELETE: RequestHandler = async ({ params }) => {

@@ -139,15 +139,29 @@
     return email.charAt(0).toUpperCase();
   }
 
-  // Add export function
+  // Simple export function that doesn't rely on toast
   async function handleExport(sessionId: string) {
+    if (!sessionId) return;
+    
     try {
+      // Simple console log instead of toast
+      console.log("Exporting chat...");
+      
       const response = await fetch(`/api/chat/${sessionId}`);
-      if (!response.ok) throw new Error('Failed to fetch chat data');
+      if (!response.ok) {
+        console.error('Failed to fetch chat data');
+        return;
+      }
       
       const data = await response.json();
+      if (!data || !data.messages) {
+        console.error('Invalid data received');
+        return;
+      }
+      
+      // Format chat data
       const chatData = {
-        title: data.session.title,
+        title: data.session?.title || 'Untitled Chat',
         messages: data.messages.map((m: any) => ({
           role: m.role,
           content: m.content,
@@ -155,37 +169,35 @@
         }))
       };
 
-      const blob = new Blob([JSON.stringify(chatData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      
-      const a = document.createElement('a');
-      a.href = url;
-      // 添加安全的文件名处理
-      const safeTitle = (data.session.title || 'Untitled Chat')
+      // Create safe filename
+      const safeTitle = chatData.title
         .replace(/[^a-z0-9]/gi, '-')
         .replace(/-+/g, '-')
         .toLowerCase();
       const timestamp = new Date().toISOString().split('T')[0];
       const filename = `chat-${safeTitle}-${timestamp}.json`;
+
+      // Create JSON blob and download
+      const jsonString = JSON.stringify(chatData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
       
-      a.download = filename;
-      a.click();
-      
+      // Use direct download approach
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      hideContextMenu();
       
-      toast({
-        title: "Success",
-        description: `Chat exported as ${filename}`,
-        type: "success"
-      });
+      console.log(`Download started: ${filename}`);
+      alert(`Chat exported as ${filename}`);
     } catch (error) {
       console.error('Export error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to export chat",
-        type: "error"
-      });
+      alert('Failed to export chat');
+    } finally {
+      hideContextMenu();
     }
   }
 </script>
@@ -298,22 +310,22 @@
 
 {#if showContextMenu}
   <div 
-    class="fixed z-50 bg-white rounded-md shadow-lg border py-1 min-w-[160px]"
+    class="fixed z-50 bg-white rounded-md shadow-lg border py-1 min-w-[180px]"
     style="left: {contextMenuX}px; top: {contextMenuY}px"
   >
     <button
       type="button"
-      class="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-100"
+      class="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center"
       on:click={() => selectedSessionId && handleExport(selectedSessionId)}
     >
-      Export Chat
+      <span class="mr-2">📥</span> Export Chat
     </button>
     <button
       type="button"
-      class="w-full text-left px-3 py-1.5 text-sm text-red-500 hover:bg-gray-100"
+      class="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-gray-100 flex items-center"
       on:click={handleClickDelete}
     >
-      Delete Chat
+      <span class="mr-2">🗑️</span> Delete Chat
     </button>
   </div>
 {/if}
