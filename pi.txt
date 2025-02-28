@@ -1,160 +1,57 @@
-.
-├── README.md
-├── components.json
-├── e2e
-│   └── demo.test.ts
-├── install.txt
-├── package-lock.json
-├── package.json
-├── package.json.sve5
-├── pi.txt
-├── playwright.config.ts
-├── postcss.config.js
-├── prompt.txt
-├── server
-│   └── routes
-├── src
-│   ├── app.css
-│   ├── app.d.ts
-│   ├── app.html
-│   ├── hooks.server.ts
-│   ├── lib
-│   │   ├── components
-│   │   │   ├── ChatBubble.svelte
-│   │   │   ├── ModelSelector.svelte
-│   │   │   └── ui
-│   │   │       ├── button
-│   │   │       │   ├── button.svelte
-│   │   │       │   └── index.ts
-│   │   │       ├── card
-│   │   │       │   ├── card-content.svelte
-│   │   │       │   ├── card-description.svelte
-│   │   │       │   ├── card-footer.svelte
-│   │   │       │   ├── card-header.svelte
-│   │   │       │   ├── card-title.svelte
-│   │   │       │   ├── card.svelte
-│   │   │       │   └── index.ts
-│   │   │       ├── confirm-dialog.svelte
-│   │   │       ├── dialog
-│   │   │       │   ├── dialog-content.svelte
-│   │   │       │   ├── dialog-description.svelte
-│   │   │       │   ├── dialog-footer.svelte
-│   │   │       │   ├── dialog-header.svelte
-│   │   │       │   ├── dialog-overlay.svelte
-│   │   │       │   ├── dialog-portal.svelte
-│   │   │       │   ├── dialog-title.svelte
-│   │   │       │   ├── dialog.svelte
-│   │   │       │   └── index.ts
-│   │   │       ├── dropdown-menu
-│   │   │       │   ├── dropdown-menu.svelte
-│   │   │       │   └── index.ts
-│   │   │       ├── input
-│   │   │       │   ├── index.ts
-│   │   │       │   └── input.svelte
-│   │   │       ├── label
-│   │   │       │   ├── index.ts
-│   │   │       │   └── label.svelte
-│   │   │       ├── select
-│   │   │       │   ├── index.ts
-│   │   │       │   ├── select-content.svelte
-│   │   │       │   ├── select-item.svelte
-│   │   │       │   ├── select-label.svelte
-│   │   │       │   ├── select-separator.svelte
-│   │   │       │   ├── select-trigger.svelte
-│   │   │       │   ├── select-value.svelte
-│   │   │       │   └── select.svelte
-│   │   │       ├── switch
-│   │   │       │   ├── index.ts
-│   │   │       │   └── switch.svelte
-│   │   │       └── toast
-│   │   │           └── index.ts
-│   │   ├── db
-│   │   │   ├── client.ts
-│   │   │   ├── dev.db
-│   │   │   └── schema.prisma
-│   │   ├── index.ts
-│   │   ├── server
-│   │   │   ├── auth.ts
-│   │   │   └── prisma.ts
-│   │   ├── services
-│   │   │   └── provider.ts
-│   │   ├── stores
-│   │   │   ├── selectedModel.ts
-│   │   │   ├── sessions.ts
-│   │   │   └── sidebar.ts
-│   │   ├── utils
-│   │   │   ├── errors.ts
-│   │   │   ├── markdown.ts
-│   │   │   ├── session.ts
-│   │   │   └── stream.ts
-│   │   └── utils.ts
-│   └── routes
-│       ├── +layout.server.ts
-│       ├── +layout.svelte
-│       ├── +layout.ts
-│       ├── +page.server.ts
-│       ├── +page.svelte
-│       ├── admin
-│       │   └── settings
-│       │       ├── +page.server.ts
-│       │       └── +page.svelte
-│       ├── api
-│       │   ├── chat
-│       │   │   ├── +server.ts
-│       │   │   └── [id]
-│       │   │       ├── +server.ts
-│       │   │       ├── generate-title
-│       │   │       │   └── +server.ts
-│       │   │       ├── messages
-│       │   │       │   └── +server.ts
-│       │   │       ├── session
-│       │   │       │   └── +server.ts
-│       │   │       └── title
-│       │   │           └── +server.ts
-│       │   ├── migration
-│       │   │   └── setup-providers
-│       │   │       └── +server.ts
-│       │   ├── models
-│       │   │   ├── +server.ts
-│       │   │   └── [id]
-│       │   │       └── +server.ts
-│       │   └── providers
-│       │       ├── +server.ts
-│       │       ├── [id]
-│       │       │   └── +server.ts
-│       │       └── test-key
-│       │           └── +server.ts
-│       ├── auth
-│       │   ├── +layout.svelte
-│       │   ├── login
-│       │   │   ├── +page.server.ts
-│       │   │   └── +page.svelte
-│       │   ├── logout
-│       │   │   └── +server.ts
-│       │   └── register
-│       │       ├── +page.server.ts
-│       │       └── +page.svelte
-│       ├── chat
-│       │   ├── +layout.server.ts
-│       │   ├── +layout.svelte
-│       │   ├── +page.svelte
-│       │   ├── [id]
-│       │   │   ├── +page.server.ts
-│       │   │   ├── +page.svelte
-│       │   │   └── +page.ts
-│       │   └── new
-│       │       └── +server.ts
-│       ├── settings
-│       │   ├── +page.server.ts
-│       │   └── +page.svelte
-│       └── user
-│           └── preferences
-│               └── +page.svelte
-├── static
-│   └── favicon.png
-├── svelte.config.js
-├── tailwind.config.js
-├── tsconfig.json
-└── vite.config.ts
+WebChat Project Overview
+======================
 
-50 directories, 108 files
+基本信息:
+- 项目名称: WebChat 
+- 版本: 0.0.1
+- 类型: Web应用
+- 开发环境: Node.js
+
+技术栈:
+- 前端框架: SvelteKit v2.17
+- UI框架: Shadcn UI (shadcn-svelte v0.14)
+- 样式: TailwindCSS v3.4
+- 认证: Lucia v3.2 + Prisma适配器
+- 数据库: Prisma ORM
+- 开发工具: TypeScript v5.2 + Vite v6
+
+项目结构:
+/webchat
+├── src/                    # 源代码目录
+│   ├── lib/               # 共享库文件
+│   ├── routes/            # 页面路由
+│   └── app.d.ts          # TypeScript声明文件
+├── static/                # 静态资源
+├── tests/                 # 测试文件 (Playwright)
+├── prisma/               # Prisma Schema及迁移文件
+└── package.json          # 项目配置和依赖
+
+主要功能模块:
+1. 用户认证 (Lucia + Prisma)
+2. 用户界面 (Shadcn + TailwindCSS) 
+3. Markdown支持 (marked)
+4. WebSocket实时聊天
+5. E2E测试 (Playwright)
+
+开发命令:
+- npm run dev: 启动开发服务器
+- npm run build: 构建生产版本
+- npm run check: 类型检查
+- npm run test: 运行测试
+- npm run format: 代码格式化
+
+部署要求:
+- Node.js 18+
+- 数据库 (由Prisma支持)
+- 支持WebSocket的服务器环境
+
+注意事项:
+1. 需要设置环境变量配置数据库连接
+2. 开发前需要运行 prisma generate
+3. 首次运行需要初始化数据库
+
+后续开发计划:
+1. 实现基础认证系统
+2. 设计聊天界面
+3. 添加实时通讯功能
+4. 优化性能和用户体验
