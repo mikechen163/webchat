@@ -11,6 +11,10 @@ model User {
   id           String        @id @default(cuid())
   email        String        @unique
   passwordHash String
+  name         String?       // Add optional display name
+  avatar       String?       // Add optional avatar URL
+  language     String        @default("en")
+  theme        String        @default("system")
   role         String        @default("user")
   createdAt    DateTime      @default(now())
   authSession  AuthSession[] // renamed from auth_session
@@ -55,14 +59,17 @@ model Message {
 }
 
 model ModelConfig {
-  id         String    @id @default(cuid())
-  name       String    @unique
-  baseUrl    String
-  apiKey     String
-  model      String
-  enabled    Boolean   @default(true)
-  providerId String?   // Make it optional for migration
-  provider   Provider? @relation(fields: [providerId], references: [id]) // Optional relation during migration
+  id           String    @id @default(cuid())
+  name         String    @unique
+  baseUrl      String
+  apiKey       String
+  model        String
+  temperature  Float     @default(0.7)  // Add temperature setting
+  maxTokens    Int       @default(2000) // Add max tokens limit
+  userPrompt   String?   // Add optional system prompt
+  enabled      Boolean   @default(true)
+  providerId   String?   // Make it optional for migration
+  provider     Provider? @relation(fields: [providerId], references: [id]) // Optional relation during migration
 
   @@index([providerId])
 }
@@ -72,6 +79,7 @@ model Provider {
   name         String        @unique
   type         String        // openai, gemini, anthropic, etc.
   baseUrl      String        @default("")
+  apiKey       String?       // Add optional API key
   isCustom     Boolean       @default(false)
   modelConfigs ModelConfig[]
 }

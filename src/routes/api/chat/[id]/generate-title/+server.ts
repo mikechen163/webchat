@@ -7,20 +7,30 @@ const prisma = new PrismaClient();
 
 export const POST: RequestHandler = async ({ params }) => {
   try {
-    // Get chat messages
-    const messages = await prisma.message.findMany({
-      where: { sessionId: params.id },
-      orderBy: { createdAt: 'asc' },
-      select: { role: true, content: true }
+    // Get chat messages and user's language preference
+    const session = await prisma.session.findUnique({
+      where: { id: params.id },
+      include: {
+        user: true,
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          select: { role: true, content: true }
+        }
+      }
     });
 
-    if (messages.length === 0) {
+    if (!session || session.messages.length === 0) {
       return new Response(null, { status: 204 });
     }
 
-    // Generate title using OpenAI
-    const prompt = `Generate a concise, 3-5 word title with an emoji summarizing this chat:
-${messages.map(m => `${m.role}: ${m.content}`).join('\n')}
+    // Generate title using OpenAI with language-specific prompt
+    const promptByLang = {
+      en: 'Generate a concise, 3-5 word title with an emoji summarizing this chat:',
+      zh: '为这个对话生成一个简洁的3-5个字的中文标题，包含emoji表情：'
+    };
+
+    const prompt = `${promptByLang[session.user.language] || promptByLang.en}
+${session.messages.map(m => `${m.role}: ${m.content}`).join('\n')}
 
 Response format: { "title": "emoji title here" }`;
 
