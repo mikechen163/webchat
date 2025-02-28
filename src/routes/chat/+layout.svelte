@@ -4,7 +4,7 @@
   import { DropdownMenu } from "$lib/components/ui/dropdown-menu";
   import { Input } from "$lib/components/ui/input";
   import { toast } from "$lib/components/ui/toast";
-  import { MoreHorizontal, Menu } from "lucide-svelte";
+  import { MoreHorizontal, Menu, Settings, LogOut } from "lucide-svelte";
   import { sessionsStore } from '$lib/stores/sessions';
   import { goto, invalidate } from "$app/navigation";
   import ConfirmDialog from "$lib/components/ui/confirm-dialog.svelte";
@@ -24,6 +24,8 @@
   // 添加响应式处理
   let innerWidth: number;
 
+  let dropdownOpen = false;
+
   function handleContextMenu(event: MouseEvent, sessionId: string) {
     event.preventDefault();
     contextMenuX = event.clientX;
@@ -38,7 +40,11 @@
   }
 
   // 点击页面任意位置关闭菜单
-  function handleClickOutside(event: MouseEvent) {
+  function handleGlobalClick(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.user-dropdown')) {
+      dropdownOpen = false;
+    }
     if (showContextMenu) {
       hideContextMenu();
     }
@@ -117,11 +123,26 @@
   function toggleSidebar() {
     $sidebarOpen = !$sidebarOpen;
   }
+
+  function toggleDropdown() {
+    dropdownOpen = !dropdownOpen;
+  }
+
+  async function handleLogout() {
+    const response = await fetch('/auth/logout', { method: 'POST' });
+    if (response.ok) {
+      window.location.href = '/auth/login';
+    }
+  }
+
+  function getInitial(email: string) {
+    return email.charAt(0).toUpperCase();
+  }
 </script>
 
 <svelte:window 
   bind:innerWidth
-  on:click={handleClickOutside} 
+  on:click={handleGlobalClick} 
 />
 
 <div class="h-screen flex">
@@ -171,10 +192,42 @@
       {/each}
     </nav>
 
-    <div class="p-4">
-      <Button variant="ghost" class="w-full" href="/settings">
-        Settings
-      </Button>
+    <!-- Replace the settings button with user profile dropdown -->
+    <div class="p-4 border-t user-dropdown">
+      <div class="relative">
+        <button
+          on:click={toggleDropdown}
+          class="w-full flex items-center gap-3 hover:bg-gray-100 p-2 rounded-md"
+        >
+          <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium">
+            {getInitial($page.data.user?.email || '')}
+          </div>
+          <span class="flex-1 truncate text-sm">
+            {$page.data.user?.email}
+          </span>
+        </button>
+
+        {#if dropdownOpen}
+          <div 
+            class="absolute bottom-full left-0 w-full mb-1 bg-white rounded-md shadow-lg border py-1"
+          >
+            <a 
+              href="/settings"
+              class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 cursor-pointer"
+            >
+              <Settings size={16} />
+              <span>Settings</span>
+            </a>
+            <button
+              on:click={handleLogout}
+              class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 cursor-pointer text-red-500"
+            >
+              <LogOut size={16} />
+              <span>Logout</span>
+            </button>
+          </div>
+        {/if}
+      </div>
     </div>
   </div>
 

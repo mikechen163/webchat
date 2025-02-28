@@ -223,15 +223,6 @@
   function formatMessage(content: string) {
     return marked(content);
   }
-
-  async function handleLogout() {
-    const response = await fetch("/auth/logout", {
-      method: "POST"
-    });
-    if (response.ok) {
-      window.location.href = "/auth/login";
-    }
-  }
 </script>
 
 <div class="w-full h-screen">
@@ -267,13 +258,6 @@
         {/if}
         
         <div class="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm"
-            on:click={handleLogout}
-          >
-            Logout
-          </Button>
           <Button 
             variant="outline" 
             size="sm"
