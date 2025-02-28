@@ -160,7 +160,14 @@
       
       const a = document.createElement('a');
       a.href = url;
-      const filename = `chat-${data.session.title}-${new Date().toISOString().split('T')[0]}.json`;
+      // 添加安全的文件名处理
+      const safeTitle = (data.session.title || 'Untitled Chat')
+        .replace(/[^a-z0-9]/gi, '-')
+        .replace(/-+/g, '-')
+        .toLowerCase();
+      const timestamp = new Date().toISOString().split('T')[0];
+      const filename = `chat-${safeTitle}-${timestamp}.json`;
+      
       a.download = filename;
       a.click();
       
