@@ -199,27 +199,6 @@
     }
   }
 
-  async function exportChat() {
-    const chatData = {
-      title: data.session.title,
-      messages: messages.map(m => ({
-        role: m.role,
-        content: m.content,
-        timestamp: m.createdAt
-      }))
-    };
-
-    const blob = new Blob([JSON.stringify(chatData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `chat-${data.session.title}-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    
-    URL.revokeObjectURL(url);
-  }
-
   function formatMessage(content: string) {
     return marked(content);
   }
@@ -258,13 +237,6 @@
         {/if}
         
         <div class="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm"
-            on:click={exportChat}
-          >
-            Export Chat
-          </Button>
           <Button 
             variant="outline" 
             size="sm"

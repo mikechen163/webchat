@@ -138,6 +138,49 @@
   function getInitial(email: string) {
     return email.charAt(0).toUpperCase();
   }
+
+  // Add export function
+  async function handleExport(sessionId: string) {
+    try {
+      const response = await fetch(`/api/chat/${sessionId}`);
+      if (!response.ok) throw new Error('Failed to fetch chat data');
+      
+      const data = await response.json();
+      const chatData = {
+        title: data.session.title,
+        messages: data.messages.map((m: any) => ({
+          role: m.role,
+          content: m.content,
+          timestamp: m.createdAt
+        }))
+      };
+
+      const blob = new Blob([JSON.stringify(chatData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      const filename = `chat-${data.session.title}-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = filename;
+      a.click();
+      
+      URL.revokeObjectURL(url);
+      hideContextMenu();
+      
+      toast({
+        title: "Success",
+        description: `Chat exported as ${filename}`,
+        type: "success"
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to export chat",
+        type: "error"
+      });
+    }
+  }
 </script>
 
 <svelte:window 
@@ -251,6 +294,13 @@
     class="fixed z-50 bg-white rounded-md shadow-lg border py-1 min-w-[160px]"
     style="left: {contextMenuX}px; top: {contextMenuY}px"
   >
+    <button
+      type="button"
+      class="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-100"
+      on:click={() => selectedSessionId && handleExport(selectedSessionId)}
+    >
+      Export Chat
+    </button>
     <button
       type="button"
       class="w-full text-left px-3 py-1.5 text-sm text-red-500 hover:bg-gray-100"
