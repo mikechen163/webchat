@@ -4,7 +4,7 @@
   import { DropdownMenu } from "$lib/components/ui/dropdown-menu";
   import { Input } from "$lib/components/ui/input";
   import { toast } from "$lib/components/ui/toast";
-  import { MoreHorizontal, Menu, Settings, LogOut } from "lucide-svelte";
+  import { MoreHorizontal, Menu, Settings, LogOut, Users, UserCog } from "lucide-svelte";
   import { sessionsStore } from '$lib/stores/sessions';
   import { goto, invalidate } from "$app/navigation";
   import ConfirmDialog from "$lib/components/ui/confirm-dialog.svelte";
@@ -200,6 +200,9 @@
       hideContextMenu();
     }
   }
+
+  // Check if user has admin role
+  $: isAdmin = $page.data.user?.role === 'admin';
 </script>
 
 <svelte:window 
@@ -254,7 +257,7 @@
       {/each}
     </nav>
 
-    <!-- Replace the settings button with user profile dropdown -->
+    <!-- User profile dropdown -->
     <div class="p-4 border-t user-dropdown">
       <div class="relative">
         <button
@@ -273,12 +276,21 @@
           <div 
             class="absolute bottom-full left-0 w-full mb-1 bg-white rounded-md shadow-lg border py-1"
           >
+            {#if isAdmin}
+              <a 
+                href="/admin/settings"
+                class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 cursor-pointer"
+              >
+                <Settings size={16} />
+                <span>Admin Settings</span>
+              </a>
+            {/if}
             <a 
-              href="/settings"
+              href="/user/preferences"
               class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 cursor-pointer"
             >
-              <Settings size={16} />
-              <span>Settings</span>
+              <UserCog size={16} />
+              <span>User Preferences</span>
             </a>
             <button
               on:click={handleLogout}
