@@ -20,15 +20,9 @@
     SelectTrigger,
     SelectValue,
   } from "$lib/components/ui/select";
-  import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-  } from "$lib/components/ui/dialog";
+  
+  // Import Dialog directly from bits-ui
+  import { Dialog as DialogPrimitive } from "bits-ui";
 
   // Redirect non-admin users
   onMount(() => {
@@ -71,7 +65,9 @@
   let isAddingProvider = false;
   let isTestingKey = false;
   let discoveredModels = [];
-  
+  let showProviderDialog = false;
+  let showModelDialog = false;
+
   // Form data
   let newProvider = {
     name: "",
@@ -419,59 +415,72 @@
             <p class="text-center text-gray-500 py-4">No providers configured yet</p>
           {/if}
 
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button class="w-full">Add Provider</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add AI Provider</DialogTitle>
-                <DialogDescription>
-                  Configure a new AI model provider
-                </DialogDescription>
-              </DialogHeader>
-              
-              <form class="space-y-4">
-                <div>
-                  <label for="provider-name" class="block mb-1 font-medium">Provider Name</label>
-                  <Input id="provider-name" bind:value={newProvider.name} placeholder="e.g., OpenAI Production" />
-                </div>
-                
-                <div>
-                  <label for="provider-type" class="block mb-1 font-medium">Provider Type</label>
-                  <Select onSelectedChange={handleProviderTypeChange} value={newProvider.type}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select provider type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {#each providerTypes as type}
-                        <SelectItem value={type.value}>{type.label}</SelectItem>
-                      {/each}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {#if newProvider.type === "custom" || !newProvider.baseUrl}
-                  <div>
-                    <label for="base-url" class="block mb-1 font-medium">
-                      Base URL
-                      <span class="text-xs font-normal text-gray-500">(for custom endpoints)</span>
-                    </label>
-                    <Input id="base-url" bind:value={newProvider.baseUrl} placeholder="https://api.example.com/v1" />
-                  </div>
-                {/if}
-              </form>
-              
-              <DialogFooter>
-                <Button type="button" variant="outline" on:click={resetProviderForm}>Cancel</Button>
-                <Button type="button" on:click={addProvider}>Add Provider</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <Button class="w-full" on:click={() => showProviderDialog = true}>Add Provider</Button>
         </div>
       </CardContent>
     </Card>
   </div>
+
+  <!-- Provider Dialog - Placed outside of other components -->
+  {#if showProviderDialog}
+    <DialogPrimitive.Root bind:open={showProviderDialog}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm" />
+        <div class="fixed inset-0 z-50 flex items-center justify-center">
+          <DialogPrimitive.Content class="bg-background fixed z-50 grid w-full max-w-lg gap-4 border bg-background p-6 shadow-lg sm:rounded-lg">
+            <div class="flex flex-col space-y-1.5">
+              <h2 class="text-lg font-semibold">Add AI Provider</h2>
+              <p class="text-sm text-muted-foreground">Configure a new AI model provider</p>
+            </div>
+            
+            <form class="space-y-4 pt-4">
+              <div>
+                <label for="provider-name" class="block mb-1 font-medium">Provider Name</label>
+                <Input id="provider-name" bind:value={newProvider.name} placeholder="e.g., OpenAI Production" />
+              </div>
+              
+              <div>
+                <label for="provider-type" class="block mb-1 font-medium">Provider Type</label>
+                <Select onSelectedChange={handleProviderTypeChange} value={newProvider.type}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select provider type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {#each providerTypes as type}
+                      <SelectItem value={type.value}>{type.label}</SelectItem>
+                    {/each}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {#if newProvider.type === "custom" || !newProvider.baseUrl}
+                <div>
+                  <label for="base-url" class="block mb-1 font-medium">
+                    Base URL
+                    <span class="text-xs font-normal text-gray-500">(for custom endpoints)</span>
+                  </label>
+                  <Input id="base-url" bind:value={newProvider.baseUrl} placeholder="https://api.example.com/v1" />
+                </div>
+              {/if}
+            </form>
+            
+            <div class="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" on:click={() => { resetProviderForm(); showProviderDialog = false; }}>Cancel</Button>
+              <Button type="button" on:click={() => { addProvider(); showProviderDialog = false; }}>Add Provider</Button>
+            </div>
+            
+            <button
+              class="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
+              on:click={() => showProviderDialog = false}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              <span class="sr-only">Close</span>
+            </button>
+          </DialogPrimitive.Content>
+        </div>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
+  {/if}
 
   <!-- Model Configuration Section -->
   <div class="mb-8">
@@ -495,8 +504,8 @@
                     </div>
                     <div class="flex items-center gap-2">
                       <label class="inline-flex items-center cursor-pointer">
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           checked={model.enabled}
                           on:change={(e) => toggleModelStatus(model.id, e.target.checked)}
                           class="sr-only peer"
@@ -515,73 +524,96 @@
             <p class="text-center text-gray-500 py-4">No models configured yet</p>
           {/if}
 
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button class="w-full">Add Model</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add AI Model</DialogTitle>
-                <DialogDescription>
-                  Configure a new AI model
-                </DialogDescription>
-              </DialogHeader>
-              
-              <form class="space-y-4">
-                <div>
-                  <label for="model-name" class="block mb-1 font-medium">Model Name</label>
-                  <Input id="model-name" bind:value={newModel.name} placeholder="e.g., GPT-3.5 Turbo" />
-                </div>
-                
-                <div>
-                  <label for="provider-select" class="block mb-1 font-medium">Provider</label>
-                  <Select onSelectedChange={handleProviderSelect} value={newModel.providerId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select provider" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {#each providers as provider}
-                        <SelectItem value={provider.id}>{provider.name}</SelectItem>
-                      {/each}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <label for="api-key" class="block mb-1 font-medium">API Key</label>
-                  <Input id="api-key" bind:value={newModel.apiKey} placeholder="sk-..." />
-                </div>
-                
-                <div>
-                  <label for="base-url" class="block mb-1 font-medium">Base URL</label>
-                  <Input id="base-url" bind:value={newModel.baseUrl} placeholder="https://api.example.com/v1" />
-                </div>
-                
-                <div>
-                  <label for="model-select" class="block mb-1 font-medium">Model</label>
-                  <Select onSelectedChange={(e) => selectDiscoveredModel(e.detail)} value={newModel.model}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {#each discoveredModels as model}
-                        <SelectItem value={model.id}>{model.name}</SelectItem>
-                      {/each}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </form>
-              
-              <DialogFooter>
-                <Button type="button" variant="outline" on:click={resetModelForm}>Cancel</Button>
-                <Button type="button" on:click={addModel}>Add Model</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <Button class="w-full" on:click={() => showModelDialog = true}>Add Model</Button>
         </div>
       </CardContent>
     </Card>
   </div>
+
+  <!-- Model Dialog - Placed outside of other components -->
+  {#if showModelDialog}
+    <DialogPrimitive.Root bind:open={showModelDialog}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm" />
+        <div class="fixed inset-0 z-50 flex items-center justify-center">
+          <DialogPrimitive.Content class="bg-background fixed z-50 grid w-full max-w-lg gap-4 border bg-background p-6 shadow-lg sm:rounded-lg">
+            <div class="flex flex-col space-y-1.5">
+              <h2 class="text-lg font-semibold">Add AI Model</h2>
+              <p class="text-sm text-muted-foreground">Configure a new AI model</p>
+            </div>
+            
+            <form class="space-y-4 pt-4">
+              <div>
+                <label for="model-name" class="block mb-1 font-medium">Model Name</label>
+                <Input id="model-name" bind:value={newModel.name} placeholder="e.g., GPT-3.5 Turbo" />
+              </div>
+              
+              <div>
+                <label for="provider-select" class="block mb-1 font-medium">Provider</label>
+                <Select onSelectedChange={handleProviderSelect} value={newModel.providerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {#each providers as provider}
+                      <SelectItem value={provider.id}>{provider.name}</SelectItem>
+                    {/each}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <label for="api-key" class="block mb-1 font-medium">API Key</label>
+                <Input id="api-key" bind:value={newModel.apiKey} placeholder="sk-..." />
+              </div>
+              
+              <div>
+                <label for="base-url" class="block mb-1 font-medium">Base URL</label>
+                <Input id="base-url" bind:value={newModel.baseUrl} placeholder="https://api.example.com/v1" />
+              </div>
+              
+              <div>
+                <label for="model-select" class="block mb-1 font-medium">Model</label>
+                <Select onSelectedChange={(e) => selectDiscoveredModel(e.detail)} value={newModel.model}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {#each discoveredModels as model}
+                      <SelectItem value={model.id}>{model.name}</SelectItem>
+                    {/each}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div class="flex justify-center">
+                <Button type="button" on:click={testApiKey} class="w-full" disabled={isTestingKey}>
+                  {#if isTestingKey}
+                    Testing...
+                  {:else}
+                    Test API Key & Discover Models
+                  {/if}
+                </Button>
+              </div>
+            </form>
+            
+            <div class="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" on:click={() => { resetModelForm(); showModelDialog = false; }}>Cancel</Button>
+              <Button type="button" on:click={() => { addModel(); showModelDialog = false; }}>Add Model</Button>
+            </div>
+            
+            <button
+              class="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
+              on:click={() => showModelDialog = false}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              <span class="sr-only">Close</span>
+            </button>
+          </DialogPrimitive.Content>
+        </div>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
+  {/if}
 
   <form on:submit|preventDefault={saveSettings} class="space-y-8">
     <!-- API Configuration -->
@@ -612,7 +644,7 @@
           <Input type="text" bind:value={modelSettings.gpt35.apiUrl} placeholder="API Endpoint" class="w-full" />
         </div>
 
-        <!-- GPT-4 Settings -->
+        <!-- GPT-4 Settings - Fixed the label tag issue -->
         <div>
           <div class="flex items-center justify-between mb-2">
             <h3 class="font-medium">GPT-4</h3>
