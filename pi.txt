@@ -1,0 +1,160 @@
+.
+├── README.md
+├── components.json
+├── e2e
+│   └── demo.test.ts
+├── install.txt
+├── package-lock.json
+├── package.json
+├── package.json.sve5
+├── pi.txt
+├── playwright.config.ts
+├── postcss.config.js
+├── prompt.txt
+├── server
+│   └── routes
+├── src
+│   ├── app.css
+│   ├── app.d.ts
+│   ├── app.html
+│   ├── hooks.server.ts
+│   ├── lib
+│   │   ├── components
+│   │   │   ├── ChatBubble.svelte
+│   │   │   ├── ModelSelector.svelte
+│   │   │   └── ui
+│   │   │       ├── button
+│   │   │       │   ├── button.svelte
+│   │   │       │   └── index.ts
+│   │   │       ├── card
+│   │   │       │   ├── card-content.svelte
+│   │   │       │   ├── card-description.svelte
+│   │   │       │   ├── card-footer.svelte
+│   │   │       │   ├── card-header.svelte
+│   │   │       │   ├── card-title.svelte
+│   │   │       │   ├── card.svelte
+│   │   │       │   └── index.ts
+│   │   │       ├── confirm-dialog.svelte
+│   │   │       ├── dialog
+│   │   │       │   ├── dialog-content.svelte
+│   │   │       │   ├── dialog-description.svelte
+│   │   │       │   ├── dialog-footer.svelte
+│   │   │       │   ├── dialog-header.svelte
+│   │   │       │   ├── dialog-overlay.svelte
+│   │   │       │   ├── dialog-portal.svelte
+│   │   │       │   ├── dialog-title.svelte
+│   │   │       │   ├── dialog.svelte
+│   │   │       │   └── index.ts
+│   │   │       ├── dropdown-menu
+│   │   │       │   ├── dropdown-menu.svelte
+│   │   │       │   └── index.ts
+│   │   │       ├── input
+│   │   │       │   ├── index.ts
+│   │   │       │   └── input.svelte
+│   │   │       ├── label
+│   │   │       │   ├── index.ts
+│   │   │       │   └── label.svelte
+│   │   │       ├── select
+│   │   │       │   ├── index.ts
+│   │   │       │   ├── select-content.svelte
+│   │   │       │   ├── select-item.svelte
+│   │   │       │   ├── select-label.svelte
+│   │   │       │   ├── select-separator.svelte
+│   │   │       │   ├── select-trigger.svelte
+│   │   │       │   ├── select-value.svelte
+│   │   │       │   └── select.svelte
+│   │   │       ├── switch
+│   │   │       │   ├── index.ts
+│   │   │       │   └── switch.svelte
+│   │   │       └── toast
+│   │   │           └── index.ts
+│   │   ├── db
+│   │   │   ├── client.ts
+│   │   │   ├── dev.db
+│   │   │   └── schema.prisma
+│   │   ├── index.ts
+│   │   ├── server
+│   │   │   ├── auth.ts
+│   │   │   └── prisma.ts
+│   │   ├── services
+│   │   │   └── provider.ts
+│   │   ├── stores
+│   │   │   ├── selectedModel.ts
+│   │   │   ├── sessions.ts
+│   │   │   └── sidebar.ts
+│   │   ├── utils
+│   │   │   ├── errors.ts
+│   │   │   ├── markdown.ts
+│   │   │   ├── session.ts
+│   │   │   └── stream.ts
+│   │   └── utils.ts
+│   └── routes
+│       ├── +layout.server.ts
+│       ├── +layout.svelte
+│       ├── +layout.ts
+│       ├── +page.server.ts
+│       ├── +page.svelte
+│       ├── admin
+│       │   └── settings
+│       │       ├── +page.server.ts
+│       │       └── +page.svelte
+│       ├── api
+│       │   ├── chat
+│       │   │   ├── +server.ts
+│       │   │   └── [id]
+│       │   │       ├── +server.ts
+│       │   │       ├── generate-title
+│       │   │       │   └── +server.ts
+│       │   │       ├── messages
+│       │   │       │   └── +server.ts
+│       │   │       ├── session
+│       │   │       │   └── +server.ts
+│       │   │       └── title
+│       │   │           └── +server.ts
+│       │   ├── migration
+│       │   │   └── setup-providers
+│       │   │       └── +server.ts
+│       │   ├── models
+│       │   │   ├── +server.ts
+│       │   │   └── [id]
+│       │   │       └── +server.ts
+│       │   └── providers
+│       │       ├── +server.ts
+│       │       ├── [id]
+│       │       │   └── +server.ts
+│       │       └── test-key
+│       │           └── +server.ts
+│       ├── auth
+│       │   ├── +layout.svelte
+│       │   ├── login
+│       │   │   ├── +page.server.ts
+│       │   │   └── +page.svelte
+│       │   ├── logout
+│       │   │   └── +server.ts
+│       │   └── register
+│       │       ├── +page.server.ts
+│       │       └── +page.svelte
+│       ├── chat
+│       │   ├── +layout.server.ts
+│       │   ├── +layout.svelte
+│       │   ├── +page.svelte
+│       │   ├── [id]
+│       │   │   ├── +page.server.ts
+│       │   │   ├── +page.svelte
+│       │   │   └── +page.ts
+│       │   └── new
+│       │       └── +server.ts
+│       ├── settings
+│       │   ├── +page.server.ts
+│       │   └── +page.svelte
+│       └── user
+│           └── preferences
+│               └── +page.svelte
+├── static
+│   └── favicon.png
+├── svelte.config.js
+├── tailwind.config.js
+├── tsconfig.json
+└── vite.config.ts
+
+50 directories, 108 files
