@@ -23,6 +23,7 @@
 		"autoprefixer": "^10.4.20",
 		"bits-ui": "^0.22.0",
 		"clsx": "^2.1.1",
+		"lucide-svelte": "^0.476.0",
 		"postcss": "^8.5.3",
 		"prettier": "^3.4.2",
 		"prettier-plugin-svelte": "^3.3.3",
@@ -42,7 +43,6 @@
 		"bcrypt": "^5.1.1",
 		"eventsource-parser": "^3.0.0",
 		"lucia": "^3.2.2",
-		"lucide-svelte": "^0.476.0",
 		"marked": "^15.0.7",
 		"prisma": "^5.22.0",
 		"shadcn-svelte": "^0.14.0"

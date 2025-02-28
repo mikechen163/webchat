@@ -55,10 +55,23 @@ model Message {
 }
 
 model ModelConfig {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  baseUrl   String
-  apiKey    String
-  model     String
-  enabled   Boolean  @default(true)
+  id         String    @id @default(cuid())
+  name       String    @unique
+  baseUrl    String
+  apiKey     String
+  model      String
+  enabled    Boolean   @default(true)
+  providerId String?   // Make it optional for migration
+  provider   Provider? @relation(fields: [providerId], references: [id]) // Optional relation during migration
+
+  @@index([providerId])
+}
+
+model Provider {
+  id           String        @id @default(cuid())
+  name         String        @unique
+  type         String        // openai, gemini, anthropic, etc.
+  baseUrl      String        @default("")
+  isCustom     Boolean       @default(false)
+  modelConfigs ModelConfig[]
 }

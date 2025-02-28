@@ -1,34 +1,50 @@
-import { error, json } from "@sveltejs/kit";
-import { PrismaClient } from "@prisma/client";
-import type { RequestHandler } from "./$types";
+import { json } from '@sveltejs/kit';
+import { PrismaClient } from '@prisma/client';
+import { error } from '@sveltejs/kit';
 
 const prisma = new PrismaClient();
 
-export const PATCH: RequestHandler = async ({ params, request, locals }) => {
-  const { user } =  locals.auth;
-  if (!user || user.role !== "admin") {
-    throw error(403, "Unauthorized");
+// DELETE /api/models/:id - Delete a model
+export async function DELETE({ params }) {
+  try {
+    await prisma.modelConfig.delete({
+      where: { id: params.id }
+    });
+    
+    return json({ success: true });
+  } catch (e) {
+    console.error('Error deleting model:', e);
+    if (e.code === 'P2025') {
+      throw error(404, 'Model not found');
+    }
+    throw error(500, 'Failed to delete model');
   }
+}
 
-  const { enabled } = await request.json();
+// PATCH /api/models/:id - Update a model
+export async function PATCH({ params, request }) {
+  const data = await request.json();
   
-  const updatedModel = await prisma.modelConfig.update({
-    where: { id: params.id },
-    data: { enabled }
-  });
-
-  return json({ ...updatedModel, apiKey: "••••••••" });
-};
-
-export const DELETE: RequestHandler = async ({ params, locals }) => {
-  const { user } = await locals.auth.validateUser();
-  if (!user || user.role !== "admin") {
-    throw error(403, "Unauthorized");
+  try {
+    const model = await prisma.modelConfig.update({
+      where: { id: params.id },
+      data,
+      include: {
+        provider: {
+          select: {
+            name: true,
+            type: true
+          }
+        }
+      }
+    });
+    
+    return json(model);
+  } catch (e) {
+    console.error('Error updating model:', e);
+    if (e.code === 'P2025') {
+      throw error(404, 'Model not found');
+    }
+    throw error(500, 'Failed to update model');
   }
-
-  await prisma.modelConfig.delete({
-    where: { id: params.id }
-  });
-
-  return new Response(null, { status: 204 });
-};
+}
