@@ -208,7 +208,7 @@
   <div class="flex flex-col h-full">
     <!-- Header -->
     <div class="border-b">
-      <div class="max-w-[1000px] mx-auto p-4 flex items-center justify-between">
+      <div class="max-w-full md:max-w-[1000px] mx-auto px-2 md:px-4 py-3 md:py-4 flex items-center justify-between">
         <div class="w-10">
           <!-- Spacer element to balance the header -->
         </div>
@@ -229,7 +229,7 @@
           {:else}
             <button 
               type="button"
-              class="text-xl font-semibold hover:text-gray-600 text-center"
+              class="text-lg md:text-xl font-semibold hover:text-gray-600 text-center truncate max-w-[80%]"
               on:click={() => editingTitle = true}
               on:keydown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
@@ -262,7 +262,7 @@
       bind:this={messageContainer}
       on:scroll={handleScroll}
     >
-      <div class="max-w-[1000px] mx-auto p-4 space-y-4">
+      <div class="max-w-full md:max-w-[1000px] mx-auto px-3 md:px-4 py-3 md:py-4 space-y-4">
         {#each messages as message (message.id)}
           <ChatBubble 
             role={message.role}
@@ -276,56 +276,52 @@
     <!-- Typing Indicator -->
     {#if sending}
       <div class="shrink-0">
-        <div class="max-w-[1000px] mx-auto px-4 py-2 text-sm text-gray-500">
+        <div class="max-w-full md:max-w-[1000px] mx-auto px-3 md:px-4 py-2 text-sm text-gray-500">
           Bot is typing...
         </div>
       </div>
     {/if}
 
-    <!-- 修改 Input 部分 -->
-  <div class="border-t shrink-0">
-    <div class="max-w-[1000px] mx-auto p-4">
-      <!-- 修改工具栏 -->
-      <div class="mb-2 flex items-center gap-2 text-sm text-gray-600">
-        {#each tools as tool}
-          <button
-            class="px-3 py-1.5 rounded-full hover:bg-gray-100 flex items-center gap-1.5"
-            on:click={() => handleToolSelect(tool.id)}
+    <!-- Input part -->
+    <div class="border-t shrink-0">
+      <div class="max-w-full md:max-w-[1000px] mx-auto px-3 md:px-4 py-3 md:py-4">
+        <!-- Tool bar -->
+        <div class="mb-2 flex items-center gap-2 text-sm text-gray-600 overflow-x-auto pb-1">
+          {#each tools as tool}
+            <button
+              class="px-2 md:px-3 py-1 md:py-1.5 rounded-full hover:bg-gray-100 flex items-center gap-1 md:gap-1.5 whitespace-nowrap"
+              on:click={() => handleToolSelect(tool.id)}
+            >
+              <span>{tool.icon}</span>
+              <span class="text-xs md:text-sm">{tool.label}</span>
+            </button>
+          {/each}
+          <ModelSelector />
+        </div>
+        
+        <!-- Message input form -->
+        <form on:submit|preventDefault={handleSubmit} class="flex items-center gap-2">
+          <Input
+            type="text"
+            bind:value={messageInput}
+            placeholder="Send a Message"
+            disabled={sending}
+            class="flex-1 h-[40px] md:h-[48px] rounded-[24px] text-sm md:text-base px-4 md:px-6 bg-white border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          />
+          <Button 
+            type="submit" 
+            disabled={sending}
+            class="h-10 w-10 md:h-12 md:w-12 rounded-full p-0 flex items-center justify-center bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            variant="default"
           >
-            <span>{tool.icon}</span>
-            <span>{tool.label}</span>
-          </button>
-        {/each}
-        <ModelSelector />
+            {#if sending}
+              <div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+            {:else}
+              <ArrowUp class="h-5 w-5 md:h-6 md:w-6" />
+            {/if}
+          </Button>
+        </form>
       </div>
-      
-      <!-- 消息输入表单 -->
-      <form on:submit|preventDefault={handleSubmit} class="flex items-center gap-2">
-        <Input
-          type="text"
-          bind:value={messageInput}
-          placeholder="Send a Message"
-          disabled={sending}
-          class="flex-1 h-[48px] rounded-[24px] text-gl px-6 bg-white border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-        />
-        <Button 
-          type="submit" 
-          disabled={sending}
-          class="h-12 w-12 rounded-full p-0 flex items-center justify-center bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-          variant="default"
-        >
-          {#if sending}
-            <div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-          {:else}
-            <ArrowUp class="h-6 w-6" />
-          {/if}
-        </Button>
-      </form>
-
-     
     </div>
-  </div>
-
-    
   </div>
 </div>
