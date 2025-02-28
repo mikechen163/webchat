@@ -128,13 +128,16 @@
 
   async function addProvider() {
     try {
-      // Adjust type for custom providers
+      // Ensure the type is properly handled for custom providers
       const providerData = {
-        ...newProvider,
-        isCustom: newProvider.type === "custom",
-        type: newProvider.type === "custom" ? "openai" : newProvider.type
+        name: newProvider.name.trim(),
+        type: newProvider.type === "custom" ? "openai" : newProvider.type,
+        baseUrl: newProvider.baseUrl || "",
+        isCustom: newProvider.type === "custom"
       };
-
+      
+      console.log("Sending provider data:", providerData);
+      
       const response = await fetch('/api/providers', {
         method: 'POST',
         headers: {
@@ -170,7 +173,6 @@
       const response = await fetch(`/api/providers/${id}`, {
         method: 'DELETE'
       });
-
       if (response.ok) {
         providers = providers.filter(p => p.id !== id);
         toast({
@@ -195,11 +197,9 @@
     try {
       isTestingKey = true;
       const provider = providers.find(p => p.id === newModel.providerId);
-      
       if (!provider) {
         throw new Error("Please select a provider first");
       }
-
       const response = await fetch('/api/providers/test-key', {
         method: 'POST',
         headers: {
@@ -211,7 +211,6 @@
           baseUrl: newModel.baseUrl || provider.baseUrl
         })
       });
-
       const result = await response.json();
 
       if (result.success) {
@@ -245,7 +244,6 @@
         },
         body: JSON.stringify(newModel)
       });
-
       if (response.ok) {
         const result = await response.json();
         models = [...models, result];
@@ -277,7 +275,6 @@
         },
         body: JSON.stringify({ enabled })
       });
-
       if (response.ok) {
         models = models.map(m => m.id === id ? { ...m, enabled } : m);
         toast({
@@ -302,7 +299,6 @@
       const response = await fetch(`/api/models/${id}`, {
         method: 'DELETE'
       });
-
       if (response.ok) {
         models = models.filter(m => m.id !== id);
         toast({
@@ -345,6 +341,7 @@
 
   function handleProviderTypeChange(event) {
     const type = event.detail;
+    console.log("Provider type changed to:", type);
     newProvider.type = type;
     
     // Set default baseUrl based on provider type
@@ -362,7 +359,6 @@
   function handleProviderSelect(event) {
     const providerId = event.detail;
     newModel.providerId = providerId;
-    
     // Set baseUrl from selected provider if available
     const selectedProvider = providers.find(p => p.id === providerId);
     if (selectedProvider && selectedProvider.baseUrl) {
@@ -373,6 +369,38 @@
   function selectDiscoveredModel(model) {
     newModel.model = model.id;
     newModel.name = model.name;
+  }
+
+  function handleSubmitProvider() {
+    // Client-side validation check
+    if (!newProvider.name?.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Provider name is required",
+        type: "error"
+      });
+      return;
+    }
+    
+    if (!newProvider.type) {
+      toast({
+        title: "Validation Error",
+        description: "Provider type is required",
+        type: "error"
+      });
+      return;
+    }
+    
+    // Log what we're sending
+    console.log("Submitting provider data:", { 
+      name: newProvider.name,
+      type: newProvider.type,
+      baseUrl: newProvider.baseUrl,
+      isCustom: newProvider.type === "custom"
+    });
+    
+    addProvider();
+    showProviderDialog = false;
   }
 </script>
 
@@ -414,7 +442,6 @@
           {:else}
             <p class="text-center text-gray-500 py-4">No providers configured yet</p>
           {/if}
-
           <Button class="w-full" on:click={() => showProviderDialog = true}>Add Provider</Button>
         </div>
       </CardContent>
@@ -433,15 +460,15 @@
               <p class="text-sm text-muted-foreground">Configure a new AI model provider</p>
             </div>
             
-            <form class="space-y-4 pt-4">
+            <form class="space-y-4 pt-4" on:submit|preventDefault>
               <div>
                 <label for="provider-name" class="block mb-1 font-medium">Provider Name</label>
-                <Input id="provider-name" bind:value={newProvider.name} placeholder="e.g., OpenAI Production" />
+                <Input id="provider-name" bind:value={newProvider.name} placeholder="e.g., OpenAI Production" required />
               </div>
               
               <div>
                 <label for="provider-type" class="block mb-1 font-medium">Provider Type</label>
-                <Select onSelectedChange={handleProviderTypeChange} value={newProvider.type}>
+                <Select onSelectedChange={handleProviderTypeChange} value={newProvider.type} required>
                   <SelectTrigger>
                     <SelectValue placeholder="Select provider type" />
                   </SelectTrigger>
@@ -451,6 +478,11 @@
                     {/each}
                   </SelectContent>
                 </Select>
+              </div>
+              
+              <!-- Show current type value for debugging -->
+              <div class="text-xs text-gray-500">
+                Selected type: {newProvider.type || 'none'}
               </div>
               
               {#if newProvider.type === "custom" || !newProvider.baseUrl}
@@ -465,8 +497,12 @@
             </form>
             
             <div class="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" on:click={() => { resetProviderForm(); showProviderDialog = false; }}>Cancel</Button>
-              <Button type="button" on:click={() => { addProvider(); showProviderDialog = false; }}>Add Provider</Button>
+              <Button type="button" variant="outline" on:click={() => { resetProviderForm(); showProviderDialog = false; }}>
+                Cancel
+              </Button>
+              <Button type="button" on:click={handleSubmitProvider}>
+                Add Provider
+              </Button>
             </div>
             
             <button
@@ -523,7 +559,6 @@
           {:else}
             <p class="text-center text-gray-500 py-4">No models configured yet</p>
           {/if}
-
           <Button class="w-full" on:click={() => showModelDialog = true}>Add Model</Button>
         </div>
       </CardContent>
@@ -644,7 +679,7 @@
           <Input type="text" bind:value={modelSettings.gpt35.apiUrl} placeholder="API Endpoint" class="w-full" />
         </div>
 
-        <!-- GPT-4 Settings - Fixed the label tag issue -->
+        <!-- GPT-4 Settings -->
         <div>
           <div class="flex items-center justify-between mb-2">
             <h3 class="font-medium">GPT-4</h3>
