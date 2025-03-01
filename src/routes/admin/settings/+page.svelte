@@ -43,24 +43,8 @@
     }
   });
 
-  let apiKey = "";
-  let modelSettings = {
-    gpt35: { enabled: true, apiUrl: "https://api.openai.com/v1" },
-    gpt4: { enabled: true, apiUrl: "https://api.openai.com/v1" }
-  };
-  let userLimit = 100;
-  let maxRequestsPerDay = 50;
-
-  async function saveSettings() {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    toast.success("Admin settings have been updated successfully", {
-      title: "Settings Saved"
-    });
-  }
-
   let providers = [];
   let models = [];
-  let isAddingProvider = false;
   let isTestingKey = false;
   let discoveredModels = [];
   let showProviderDialog = false;
