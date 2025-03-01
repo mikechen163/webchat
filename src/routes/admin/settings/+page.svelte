@@ -259,34 +259,6 @@
     }
   }
 
-  async function toggleModelStatus(id, enabled) {
-    try {
-      const response = await fetch(`/api/models/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ enabled })
-      });
-      if (response.ok) {
-        models = models.map(m => m.id === id ? { ...m, enabled } : m);
-        showToast({
-          title: "Success",
-          description: `Model ${enabled ? 'enabled' : 'disabled'} successfully`,
-          type: "default"
-        });
-      } else {
-        throw new Error("Failed to update model status");
-      }
-    } catch (err) {
-      showToast({
-        title: "Error",
-        description: err.message || "An error occurred",
-        type: "error"
-      });
-    }
-  }
-
   async function deleteModel(id) {
     try {
       const response = await fetch(`/api/models/${id}`, {
@@ -454,7 +426,49 @@
     }
   }
 
-  async function toggleModel(modelId: string, enabled: boolean) {
+  async function toggleModel(modelId: string | undefined, enabled: boolean, customModel?: {name: string; enabled: boolean}) {
+    if (customModel) {
+      // Handle custom model
+      try {
+        const modelConfig = {
+          name: customModel.name,
+          baseUrl: newProvider.baseUrl,
+          apiKey: newProvider.apiKey,
+          model: customModel.name, // Use name as model identifier for custom models
+          providerId: editingProviderId || undefined,
+          enabled: true,
+          temperature: 0.7,
+          maxTokens: 2000
+        };
+
+        const response = await fetch('/api/models', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(modelConfig)
+        });
+
+        if (response.ok) {
+          customModel.enabled = true;
+          showToast({
+            title: "Success",
+            description: `Custom model ${customModel.name} enabled`,
+            type: "default"
+          });
+        } else {
+          throw new Error("Failed to enable custom model");
+        }
+      } catch (err) {
+        showToast({
+          title: "Error",
+          description: err instanceof Error ? err.message : "Failed to enable custom model",
+          type: "error"
+        });
+        customModel.enabled = false;
+      }
+      return;
+    }
+
+    // Handle discovered models
     const model = discoveredModels.find(m => m.id === modelId);
     if (!model) return;
 
@@ -493,6 +507,7 @@
           description: err instanceof Error ? err.message : "Failed to enable model",
           type: "error"
         });
+        model.enabled = false;
       }
     }
   }
@@ -731,6 +746,8 @@
                             <input
                               type="checkbox"
                               bind:checked={model.enabled}
+                              on:change={(e) => toggleModel(undefined, e.currentTarget.checked, model)}
+                              disabled={!model.name}
                               class="rounded border-gray-300"
                             />
                             <span class="text-sm">Enable</span>
