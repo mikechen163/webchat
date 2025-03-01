@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
-  import { toast } from "$lib/components/ui/toast";
+  import { toast } from "svelte-sonner";
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
   import { onMount } from "svelte";
@@ -23,13 +23,19 @@
   
   import { Dialog as DialogPrimitive } from "bits-ui";
 
+  function showToast({ title, description, type = "default" }) {
+    if (type === "error") {
+      toast.error(description, { title });
+    } else {
+      toast.success(description, { title });
+    }
+  }
+
   onMount(() => {
     if ($page.data.user?.role !== 'admin') {
       goto('/chat');
-      toast({
-        title: "Access Denied",
-        description: "You don't have permission to access admin settings",
-        type: "error"
+      toast.error("You don't have permission to access admin settings", {
+        title: "Access Denied"
       });
     } else {
       loadProviders();
@@ -47,10 +53,8 @@
 
   async function saveSettings() {
     await new Promise(resolve => setTimeout(resolve, 800));
-    toast({
-      title: "Settings Saved",
-      description: "Admin settings have been updated successfully",
-      type: "success"
+    toast.success("Admin settings have been updated successfully", {
+      title: "Settings Saved"
     });
   }
 
@@ -92,7 +96,7 @@
       if (response.ok) {
         providers = await response.json();
       } else {
-        toast({
+        showToast({
           title: "Error",
           description: "Failed to load providers",
           type: "error"
@@ -109,7 +113,7 @@
       if (response.ok) {
         models = await response.json();
       } else {
-        toast({
+        showToast({
           title: "Error",
           description: "Failed to load models",
           type: "error"
@@ -155,20 +159,20 @@
         const result = await response.json();
         providers = [...providers, result];
         resetProviderForm();
-        toast({
+        showToast({
           title: "Success",
           description: "Provider added successfully",
-          variant: "default"
+          type: "default"
         });
       } else {
         const error = await response.json();
         throw new Error(error.message || "Failed to add provider");
       }
     } catch (err) {
-      toast({
+      showToast({
         title: "Error",
         description: err instanceof Error ? err.message : "An error occurred",
-        variant: "destructive"
+        type: "error"
       });
     }
   }
@@ -180,17 +184,17 @@
       });
       if (response.ok) {
         providers = providers.filter(p => p.id !== id);
-        toast({
+        showToast({
           title: "Success",
           description: "Provider deleted successfully",
-          type: "success"
+          type: "default"
         });
       } else {
         const error = await response.text();
         throw new Error(error || "Failed to delete provider");
       }
     } catch (err) {
-      toast({
+      showToast({
         title: "Error",
         description: err.message || "An error occurred",
         type: "error"
@@ -220,16 +224,16 @@
 
       if (result.success) {
         discoveredModels = result.models;
-        toast({
+        showToast({
           title: "Success",
           description: `API key valid! Found ${discoveredModels.length} models.`,
-          type: "success"
+          type: "default"
         });
       } else {
         throw new Error(result.message || "API key validation failed");
       }
     } catch (err) {
-      toast({
+      showToast({
         title: "Error",
         description: err.message || "Failed to validate API key",
         type: "error"
@@ -253,17 +257,17 @@
         const result = await response.json();
         models = [...models, result];
         resetModelForm();
-        toast({
+        showToast({
           title: "Success",
           description: "Model added successfully",
-          type: "success"
+          type: "default"
         });
       } else {
         const error = await response.json();
         throw new Error(error.message || "Failed to add model");
       }
     } catch (err) {
-      toast({
+      showToast({
         title: "Error",
         description: err.message || "An error occurred",
         type: "error"
@@ -282,16 +286,16 @@
       });
       if (response.ok) {
         models = models.map(m => m.id === id ? { ...m, enabled } : m);
-        toast({
+        showToast({
           title: "Success",
           description: `Model ${enabled ? 'enabled' : 'disabled'} successfully`,
-          type: "success"
+          type: "default"
         });
       } else {
         throw new Error("Failed to update model status");
       }
     } catch (err) {
-      toast({
+      showToast({
         title: "Error",
         description: err.message || "An error occurred",
         type: "error"
@@ -306,16 +310,16 @@
       });
       if (response.ok) {
         models = models.filter(m => m.id !== id);
-        toast({
+        showToast({
           title: "Success",
           description: "Model deleted successfully",
-          type: "success"
+          type: "default"
         });
       } else {
         throw new Error("Failed to delete model");
       }
     } catch (err) {
-      toast({
+      showToast({
         title: "Error",
         description: err.message || "An error occurred",
         type: "error"
@@ -382,7 +386,7 @@
 
   function handleSubmitProvider() {
     if (!newProvider.name?.trim()) {
-      toast({
+      showToast({
         title: "Validation Error",
         description: "Provider name is required",
         type: "error"
@@ -391,7 +395,7 @@
     }
     
     if (!newProvider.type) {
-      toast({
+      showToast({
         title: "Validation Error",
         description: "Provider type is required",
         type: "error"
@@ -400,7 +404,7 @@
     }
 
     if (!newProvider.apiKey?.trim()) {
-      toast({
+      showToast({
         title: "Validation Error",
         description: "API key is required",
         type: "error"
@@ -440,16 +444,16 @@
 
       const result = await response.json();
       if (result.success) {
-        toast({
+        showToast({
           title: "Success",
           description: "API key is valid",
-          type: "success"
+          type: "default"
         });
       } else {
         throw new Error(result.message || "Invalid API key");
       }
     } catch (err) {
-      toast({
+      showToast({
         title: "Error",
         description: err instanceof Error ? err.message : "Failed to validate API key",
         type: "error"
@@ -493,26 +497,27 @@
           p.id === editingProviderId ? result : p
         );
         resetProviderForm();
-        toast({
+        showToast({
           title: "Success",
           description: "Provider updated successfully",
-          variant: "default"
+          type: "default"
         });
       } else {
         const error = await response.json();
         throw new Error(error.message || "Failed to update provider");
       }
     } catch (err) {
-      toast({
+      showToast({
         title: "Error",
         description: err instanceof Error ? err.message : "An error occurred",
-        variant: "destructive"
+        type: "error"
       });
     } finally {
       isEditing = false;
       editingProviderId = null;
     }
   }
+
 </script>
 
 <div class="max-w-4xl mx-auto px-4 py-8">

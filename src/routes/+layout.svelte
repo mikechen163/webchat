@@ -4,6 +4,7 @@
   import { sessionsStore } from '$lib/stores/sessions';
   import { invalidate } from '$app/navigation';
   import { toasts } from '$lib/stores/toast';
+  import { Toaster } from "svelte-sonner";
   
   // 提供invalidate方法给store
   $sessionsStore.invalidate = () => {
@@ -35,6 +36,8 @@
         </div>
     {/each}
 </div>
+
+<Toaster richColors closeButton />
 
 <style>
     .toast-container {
