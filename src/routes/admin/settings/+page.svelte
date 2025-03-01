@@ -331,6 +331,8 @@
       apiKey: "",
       isCustom: false
     };
+    isEditing = false;
+    editingProviderId = null;
   }
 
   function resetModelForm() {
@@ -406,15 +408,11 @@
       return;
     }
     
-    console.log("Submitting provider data:", { 
-      name: newProvider.name,
-      type: newProvider.type,
-      baseUrl: newProvider.baseUrl,
-      apiKey: newProvider.apiKey ? "***" : undefined,
-      isCustom: newProvider.type === "custom"
-    });
-    
-    addProvider();
+    if (isEditing) {
+      updateProvider();
+    } else {
+      addProvider();
+    }
     showProviderDialog = false;
   }
 
@@ -460,6 +458,61 @@
       isTestingProviderKey = false;
     }
   }
+
+  let isEditing = false;
+  let editingProviderId = null;
+
+  function handleEditProvider(provider) {
+    isEditing = true;
+    editingProviderId = provider.id;
+    newProvider = {
+      name: provider.name,
+      type: provider.type,
+      baseUrl: provider.baseUrl,
+      apiKey: provider.apiKey,
+      isCustom: provider.isCustom
+    };
+    showProviderDialog = true;
+  }
+
+  async function updateProvider() {
+    try {
+      const providerData = sanitizeProviderData(newProvider);
+      
+      const response = await fetch(`/api/providers/${editingProviderId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(providerData)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        providers = providers.map(p => 
+          p.id === editingProviderId ? result : p
+        );
+        resetProviderForm();
+        toast({
+          title: "Success",
+          description: "Provider updated successfully",
+          variant: "default"
+        });
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to update provider");
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "An error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      isEditing = false;
+      editingProviderId = null;
+    }
+  }
 </script>
 
 <div class="max-w-4xl mx-auto px-4 py-8">
@@ -492,7 +545,14 @@
                       <p class="text-xs text-gray-400">{provider.baseUrl}</p>
                     {/if}
                   </div>
-                  <Button variant="destructive" size="sm" on:click={() => deleteProvider(provider.id)}>Delete</Button>
+                  <div class="flex gap-2">
+                    <Button variant="outline" size="sm" on:click={() => handleEditProvider(provider)}>
+                      Modify
+                    </Button>
+                    <Button variant="destructive" size="sm" on:click={() => deleteProvider(provider.id)}>
+                      Delete
+                    </Button>
+                  </div>
                 </div>
               {/each}
             </div>
@@ -512,8 +572,10 @@
         <div class="fixed inset-0 z-50 flex items-center justify-center">
           <DialogPrimitive.Content class="bg-background fixed z-50 grid w-full max-w-lg gap-4 border bg-background p-6 shadow-lg sm:rounded-lg">
             <div class="flex flex-col space-y-1.5">
-              <h2 class="text-lg font-semibold">Add AI Provider</h2>
-              <p class="text-sm text-muted-foreground">Configure a new AI model provider</p>
+              <h2 class="text-lg font-semibold">{isEditing ? 'Modify' : 'Add'} AI Provider</h2>
+              <p class="text-sm text-muted-foreground">
+                {isEditing ? 'Update existing' : 'Configure new'} AI model provider
+              </p>
             </div>
             
             <form class="space-y-4 pt-4" on:submit|preventDefault>
@@ -586,7 +648,7 @@
                 Cancel
               </Button>
               <Button type="button" on:click={handleSubmitProvider}>
-                Add Provider
+                {isEditing ? 'Update' : 'Add'} Provider
               </Button>
             </div>
             
