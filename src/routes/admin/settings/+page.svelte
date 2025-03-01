@@ -46,7 +46,7 @@
   let providers = [];
   let models = [];
   let isTestingKey = false;
-  let discoveredModels = [];
+  let discoveredModels: Array<{id: string; name: string; enabled?: boolean}> = [];
   let showProviderDialog = false;
   let showModelDialog = false;
 
@@ -406,6 +406,9 @@
 
   let isTestingProviderKey = false;
 
+  let customModels: Array<{name: string; enabled: boolean}> = [];
+  let isCustomProvider = false;
+
   async function testProviderKey() {
     try {
       isTestingProviderKey = true;
@@ -428,9 +431,11 @@
 
       const result = await response.json();
       if (result.success) {
+        discoveredModels = (result.models || []).map(m => ({ ...m, enabled: false }));
+        isCustomProvider = discoveredModels.length === 0;
         showToast({
           title: "Success",
-          description: "API key is valid",
+          description: `API key is valid! ${discoveredModels.length ? `Found ${discoveredModels.length} models.` : 'No models found, using custom mode.'}`,
           type: "default"
         });
       } else {
@@ -442,9 +447,62 @@
         description: err instanceof Error ? err.message : "Failed to validate API key",
         type: "error"
       });
+      discoveredModels = [];
+      isCustomProvider = true;
     } finally {
       isTestingProviderKey = false;
     }
+  }
+
+  async function toggleModel(modelId: string, enabled: boolean) {
+    const model = discoveredModels.find(m => m.id === modelId);
+    if (!model) return;
+
+    if (enabled) {
+      try {
+        const modelConfig = {
+          name: model.name,
+          baseUrl: newProvider.baseUrl,
+          apiKey: newProvider.apiKey,
+          model: model.id,
+          providerId: editingProviderId || undefined,
+          enabled: true,
+          temperature: 0.7,
+          maxTokens: 2000
+        };
+
+        const response = await fetch('/api/models', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(modelConfig)
+        });
+
+        if (response.ok) {
+          model.enabled = true;
+          showToast({
+            title: "Success",
+            description: `Model ${model.name} enabled`,
+            type: "default"
+          });
+        } else {
+          throw new Error("Failed to enable model");
+        }
+      } catch (err) {
+        showToast({
+          title: "Error",
+          description: err instanceof Error ? err.message : "Failed to enable model",
+          type: "error"
+        });
+      }
+    }
+  }
+
+  function addCustomModel() {
+    customModels = [...customModels, { name: '', enabled: false }];
+  }
+
+  function removeCustomModel(index: number) {
+    customModels = customModels.filter((_, i) => i !== index);
   }
 
   let isEditing = false;
@@ -630,9 +688,69 @@
                   {/if}
                 </Button>
               </div>
-            </form>
-            
-            <div class="flex justify-end gap-2 pt-4">
+
+              <!-- Add new model selection section -->
+              {#if newProvider.apiKey}
+                <div class="border rounded-md p-4 space-y-4">
+                  <h3 class="font-medium">Available Models</h3>
+                  
+                  {#if discoveredModels.length > 0}
+                    <div class="space-y-2 max-h-[240px] overflow-y-auto pr-2">
+                      {#each discoveredModels as model (model.id)}
+                        <div class="flex items-center justify-between py-2">
+                          <span class="text-sm">{model.name}</span>
+                          <label class="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={model.enabled}
+                              on:change={(e) => toggleModel(model.id, e.currentTarget.checked)}
+                              class="rounded border-gray-300"
+                            />
+                            <span class="text-sm">Enable</span>
+                          </label>
+                        </div>
+                      {/each}
+                    </div>
+                  {:else if isCustomProvider}
+                    <div class="space-y-2 max-h-[240px] overflow-y-auto pr-2">
+                      {#each customModels as model, i}
+                        <div class="flex items-center gap-2">
+                          <Input
+                            bind:value={model.name}
+                            placeholder="Enter model name"
+                            class="flex-1"
+                          />
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            on:click={() => removeCustomModel(i)}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                          </Button>
+                          <label class="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              bind:checked={model.enabled}
+                              class="rounded border-gray-300"
+                            />
+                            <span class="text-sm">Enable</span>
+                          </label>
+                        </div>
+                      {/each}
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        class="w-full"
+                        on:click={addCustomModel}
+                      >
+                        Add Custom Model
+                      </Button>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+
+              <div class="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" on:click={() => { resetProviderForm(); showProviderDialog = false; }}>
                 Cancel
               </Button>
