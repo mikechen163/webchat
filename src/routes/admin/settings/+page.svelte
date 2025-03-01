@@ -112,10 +112,11 @@
     return {
       name: provider.name?.trim() || '',
       type: provider.type === "custom" ? "openai" : (provider.type || "openai"),
-      baseUrl: provider.type === "openai" ? "https://api.openai.com/v1" : 
-              provider.type === "gemini" ? "https://generativelanguage.googleapis.com/v1beta" :
-              provider.type === "anthropic" ? "https://api.anthropic.com/v1" :
-              provider.baseUrl?.trim() || "",
+      // baseUrl: provider.type === "openai" ? "https://api.openai.com/v1" : 
+      //         provider.type === "gemini" ? "https://generativelanguage.googleapis.com/v1beta" :
+      //         provider.type === "anthropic" ? "https://api.anthropic.com/v1" :
+      //         provider.baseUrl?.trim() || "",
+        baseUrl: provider.baseUrl?.trim() || '',
       apiKey: typeof provider.apiKey === 'string' ? 
         provider.apiKey.replace(/TypeError:.*|Error:.*$/g, '').trim() : '',
       isCustom: provider.type === "custom"
@@ -438,7 +439,7 @@
           providerId: editingProviderId || undefined,
           enabled: true,
           temperature: 0.7,
-          maxTokens: 2000
+          maxTokens: 8000
         };
 
         const response = await fetch('/api/models', {
@@ -482,7 +483,7 @@
           providerId: editingProviderId || undefined,
           enabled: true,
           temperature: 0.7,
-          maxTokens: 2000
+          maxTokens: 8000
         };
 
         const response = await fetch('/api/models', {
@@ -678,7 +679,7 @@
                 />
               </div>
 
-              {#if newProvider.type === "custom" || !newProvider.baseUrl}
+              <!-- {#if newProvider.type === "custom" || !newProvider.baseUrl} -->
                 <div>
                   <label for="base-url" class="block mb-1 font-medium">
                     Base URL
@@ -686,7 +687,7 @@
                   </label>
                   <Input id="base-url" bind:value={newProvider.baseUrl} placeholder="https://api.example.com/v1" />
                 </div>
-              {/if}
+              <!-- {/if} -->
 
               <div class="flex justify-center">
                 <Button 
