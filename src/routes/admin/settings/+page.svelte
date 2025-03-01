@@ -21,10 +21,8 @@
     SelectValue,
   } from "$lib/components/ui/select";
   
-  // Import Dialog directly from bits-ui
   import { Dialog as DialogPrimitive } from "bits-ui";
 
-  // Redirect non-admin users
   onMount(() => {
     if ($page.data.user?.role !== 'admin') {
       goto('/chat');
@@ -39,7 +37,6 @@
     }
   });
 
-  // Settings variables
   let apiKey = "";
   let modelSettings = {
     gpt35: { enabled: true, apiUrl: "https://api.openai.com/v1" },
@@ -48,9 +45,7 @@
   let userLimit = 100;
   let maxRequestsPerDay = 50;
 
-  // Mock saving settings
   async function saveSettings() {
-    // In a real app, this would send data to the server
     await new Promise(resolve => setTimeout(resolve, 800));
     toast({
       title: "Settings Saved",
@@ -59,7 +54,6 @@
     });
   }
 
-  // Provider management
   let providers = [];
   let models = [];
   let isAddingProvider = false;
@@ -68,11 +62,11 @@
   let showProviderDialog = false;
   let showModelDialog = false;
 
-  // Form data
   let newProvider = {
     name: "",
     type: "openai",
     baseUrl: "",
+    apiKey: "",
     isCustom: false
   };
 
@@ -126,17 +120,28 @@
     }
   }
 
+  function sanitizeProviderData(provider) {
+    return {
+      name: provider.name?.trim() || '',
+      type: provider.type === "custom" ? "openai" : (provider.type || "openai"),
+      baseUrl: provider.type === "openai" ? "https://api.openai.com/v1" : 
+              provider.type === "gemini" ? "https://generativelanguage.googleapis.com/v1beta" :
+              provider.type === "anthropic" ? "https://api.anthropic.com/v1" :
+              provider.baseUrl?.trim() || "",
+      apiKey: typeof provider.apiKey === 'string' ? 
+        provider.apiKey.replace(/TypeError:.*|Error:.*$/g, '').trim() : '',
+      isCustom: provider.type === "custom"
+    };
+  }
+
   async function addProvider() {
     try {
-      // Ensure the type is properly handled for custom providers
-      const providerData = {
-        name: newProvider.name.trim(),
-        type: newProvider.type === "custom" ? "openai" : newProvider.type,
-        baseUrl: newProvider.baseUrl || "",
-        isCustom: newProvider.type === "custom"
-      };
+      const providerData = sanitizeProviderData(newProvider);
       
-      console.log("Sending provider data:", providerData);
+      console.log("Sending provider data:", {
+        ...providerData, 
+        apiKey: providerData.apiKey ? '***' : undefined
+      });
       
       const response = await fetch('/api/providers', {
         method: 'POST',
@@ -153,7 +158,7 @@
         toast({
           title: "Success",
           description: "Provider added successfully",
-          type: "success"
+          variant: "default"
         });
       } else {
         const error = await response.json();
@@ -162,8 +167,8 @@
     } catch (err) {
       toast({
         title: "Error",
-        description: err.message || "An error occurred",
-        type: "error"
+        description: err instanceof Error ? err.message : "An error occurred",
+        variant: "destructive"
       });
     }
   }
@@ -323,6 +328,7 @@
       name: "",
       type: "openai",
       baseUrl: "",
+      apiKey: "",
       isCustom: false
     };
   }
@@ -344,7 +350,6 @@
     console.log("Provider type changed to:", type);
     newProvider.type = type;
     
-    // Set default baseUrl based on provider type
     if (type === "openai") {
       newProvider.baseUrl = "https://api.openai.com/v1";
     } else if (type === "gemini") {
@@ -359,7 +364,6 @@
   function handleProviderSelect(event) {
     const providerId = event.detail;
     newModel.providerId = providerId;
-    // Set baseUrl from selected provider if available
     const selectedProvider = providers.find(p => p.id === providerId);
     if (selectedProvider && selectedProvider.baseUrl) {
       newModel.baseUrl = selectedProvider.baseUrl;
@@ -372,7 +376,6 @@
   }
 
   function handleSubmitProvider() {
-    // Client-side validation check
     if (!newProvider.name?.trim()) {
       toast({
         title: "Validation Error",
@@ -390,17 +393,69 @@
       });
       return;
     }
+
+    if (!newProvider.apiKey?.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "API key is required",
+        type: "error"
+      });
+      return;
+    }
     
-    // Log what we're sending
     console.log("Submitting provider data:", { 
       name: newProvider.name,
       type: newProvider.type,
       baseUrl: newProvider.baseUrl,
+      apiKey: newProvider.apiKey ? "***" : undefined,
       isCustom: newProvider.type === "custom"
     });
     
     addProvider();
     showProviderDialog = false;
+  }
+
+  let isTestingProviderKey = false;
+
+  async function testProviderKey() {
+    try {
+      isTestingProviderKey = true;
+      const sanitizedApiKey = typeof newProvider.apiKey === 'string' ?
+        newProvider.apiKey.replace(/TypeError:.*|Error:.*$/g, '').trim() : '';
+        
+      if (!sanitizedApiKey) {
+        throw new Error("Please enter a valid API key");
+      }
+      
+      const response = await fetch('/api/providers/test-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: newProvider.type,
+          apiKey: sanitizedApiKey,
+          baseUrl: newProvider.baseUrl
+        })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "API key is valid",
+          type: "success"
+        });
+      } else {
+        throw new Error(result.message || "Invalid API key");
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to validate API key",
+        type: "error"
+      });
+    } finally {
+      isTestingProviderKey = false;
+    }
   }
 </script>
 
@@ -410,7 +465,6 @@
     <p class="text-gray-600">Manage LLM providers and models</p>
   </div>
 
-  <!-- Provider Management Section -->
   <div class="mb-8">
     <Card>
       <CardHeader>
@@ -448,7 +502,6 @@
     </Card>
   </div>
 
-  <!-- Provider Dialog - Placed outside of other components -->
   {#if showProviderDialog}
     <DialogPrimitive.Root bind:open={showProviderDialog}>
       <DialogPrimitive.Portal>
@@ -480,11 +533,24 @@
                 </Select>
               </div>
               
-              <!-- Show current type value for debugging -->
               <div class="text-xs text-gray-500">
                 Selected type: {newProvider.type || 'none'}
               </div>
               
+              <div>
+                <label for="provider-api-key" class="block mb-1 font-medium">
+                  API Key
+                  <span class="text-xs font-normal text-gray-500">(required)</span>
+                </label>
+                <Input 
+                  id="provider-api-key" 
+                  type="password"
+                  bind:value={newProvider.apiKey} 
+                  placeholder="Enter API key"
+                  required 
+                />
+              </div>
+
               {#if newProvider.type === "custom" || !newProvider.baseUrl}
                 <div>
                   <label for="base-url" class="block mb-1 font-medium">
@@ -494,6 +560,22 @@
                   <Input id="base-url" bind:value={newProvider.baseUrl} placeholder="https://api.example.com/v1" />
                 </div>
               {/if}
+
+              <div class="flex justify-center">
+                <Button 
+                  type="button" 
+                  variant="outline"
+                  class="w-full"
+                  on:click={testProviderKey} 
+                  disabled={isTestingProviderKey || !newProvider.apiKey}
+                >
+                  {#if isTestingProviderKey}
+                    Testing...
+                  {:else}
+                    Test API Key
+                  {/if}
+                </Button>
+              </div>
             </form>
             
             <div class="flex justify-end gap-2 pt-4">
@@ -518,7 +600,6 @@
     </DialogPrimitive.Root>
   {/if}
 
-  <!-- Model Configuration Section -->
   <div class="mb-8">
     <Card>
       <CardHeader>
@@ -565,7 +646,6 @@
     </Card>
   </div>
 
-  <!-- Model Dialog - Placed outside of other components -->
   {#if showModelDialog}
     <DialogPrimitive.Root bind:open={showModelDialog}>
       <DialogPrimitive.Portal>
@@ -651,7 +731,6 @@
   {/if}
 
   <form on:submit|preventDefault={saveSettings} class="space-y-8">
-    <!-- API Configuration -->
     <div class="space-y-4">
       <h2 class="text-xl font-semibold">API Configuration</h2>
       <div class="border rounded-lg p-4 space-y-4">
@@ -663,11 +742,9 @@
       </div>
     </div>
 
-    <!-- Model Settings -->
     <div class="space-y-4">
       <h2 class="text-xl font-semibold">Model Settings</h2>
       <div class="border rounded-lg p-4 space-y-6">
-        <!-- GPT-3.5 Settings -->
         <div>
           <div class="flex items-center justify-between mb-2">
             <h3 class="font-medium">GPT-3.5</h3>
@@ -679,7 +756,6 @@
           <Input type="text" bind:value={modelSettings.gpt35.apiUrl} placeholder="API Endpoint" class="w-full" />
         </div>
 
-        <!-- GPT-4 Settings -->
         <div>
           <div class="flex items-center justify-between mb-2">
             <h3 class="font-medium">GPT-4</h3>
@@ -693,7 +769,6 @@
       </div>
     </div>
 
-    <!-- Usage Limits -->
     <div class="space-y-4">
       <h2 class="text-xl font-semibold">Usage Limits</h2>
       <div class="border rounded-lg p-4 space-y-4">

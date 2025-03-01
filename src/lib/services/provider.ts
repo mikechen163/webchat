@@ -49,21 +49,35 @@ export async function fetchProviderModels(
 
 // OpenAI Implementation
 async function testOpenAIKey(apiKey: string, baseUrl?: string): Promise<boolean> {
-  const url = baseUrl || 'https://api.openai.com/v1/models';
-  
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    }
-  });
-  
-  return response.ok;
+  try {
+    // Sanitize the API key - remove any non-ASCII characters
+    const sanitizedApiKey = apiKey.replace(/[^\x00-\x7F]/g, '').trim();
+    
+    // Ensure baseUrl is a fully qualified URL
+    const url = baseUrl ? 
+      new URL('/v1/models', ensureAbsoluteUrl(baseUrl)).toString() : 
+      'https://api.openai.com/v1/models';
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${sanitizedApiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    return response.ok;
+  } catch (error) {
+    console.error("Error testing OpenAI key:", error);
+    return false;
+  }
 }
 
 async function fetchOpenAIModels(apiKey: string, baseUrl?: string): Promise<Model[]> {
-  const url = baseUrl || 'https://api.openai.com/v1/models';
+  // Ensure baseUrl is a fully qualified URL
+  const url = baseUrl ? 
+    new URL('/v1/models', ensureAbsoluteUrl(baseUrl)).toString() : 
+    'https://api.openai.com/v1/models';
   
   const response = await fetch(url, {
     method: 'GET',
@@ -94,20 +108,34 @@ async function fetchOpenAIModels(apiKey: string, baseUrl?: string): Promise<Mode
 
 // Gemini Implementation
 async function testGeminiKey(apiKey: string, baseUrl?: string): Promise<boolean> {
-  const url = baseUrl || `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-  
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-  
-  return response.ok;
+  try {
+    // Sanitize the API key
+    const sanitizedApiKey = apiKey.replace(/[^\x00-\x7F]/g, '').trim();
+    
+    // Ensure baseUrl is a fully qualified URL
+    const url = baseUrl ? 
+      new URL(`/v1beta/models?key=${sanitizedApiKey}`, ensureAbsoluteUrl(baseUrl)).toString() : 
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${sanitizedApiKey}`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    return response.ok;
+  } catch (error) {
+    console.error("Error testing Gemini key:", error);
+    return false;
+  }
 }
 
 async function fetchGeminiModels(apiKey: string, baseUrl?: string): Promise<Model[]> {
-  const url = baseUrl || `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+  // Ensure baseUrl is a fully qualified URL
+  const url = baseUrl ? 
+    new URL(`/v1beta/models?key=${apiKey}`, ensureAbsoluteUrl(baseUrl)).toString() : 
+    `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
   
   const response = await fetch(url, {
     method: 'GET',
@@ -136,21 +164,32 @@ async function fetchGeminiModels(apiKey: string, baseUrl?: string): Promise<Mode
 
 // Anthropic Implementation
 async function testAnthropicKey(apiKey: string, baseUrl?: string): Promise<boolean> {
-  const url = baseUrl || 'https://api.anthropic.com/v1/messages';
-  
   try {
-    const response = await fetch(url, {
-      method: 'OPTIONS',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      }
-    });
+    // Sanitize the API key
+    const sanitizedApiKey = apiKey.replace(/[^\x00-\x7F]/g, '').trim();
     
-    return response.ok || response.status === 405; // OPTIONS may not be supported
-  } catch {
-    // Try a different approach for Anthropic
-    return true; // Since Anthropic doesn't have a model listing endpoint, we'll assume the key is valid
+    // Ensure baseUrl is a fully qualified URL
+    const url = baseUrl ? 
+      new URL('/v1/messages', ensureAbsoluteUrl(baseUrl)).toString() : 
+      'https://api.anthropic.com/v1/messages';
+    
+    try {
+      const response = await fetch(url, {
+        method: 'OPTIONS',
+        headers: {
+          'x-api-key': sanitizedApiKey,
+          'anthropic-version': '2023-06-01'
+        }
+      });
+      
+      return response.ok || response.status === 405; // OPTIONS may not be supported
+    } catch {
+      // Try a different approach for Anthropic
+      return true; // Since Anthropic doesn't have a model listing endpoint, we'll assume the key is valid
+    }
+  } catch (error) {
+    console.error("Error testing Anthropic key:", error);
+    return false;
   }
 }
 
@@ -164,4 +203,15 @@ async function fetchAnthropicModels(apiKey: string, baseUrl?: string): Promise<M
     { id: 'claude-2.0', name: 'Claude 2.0' },
     { id: 'claude-instant-1.2', name: 'Claude Instant 1.2' }
   ];
+}
+
+// Helper function to ensure a URL is absolute
+function ensureAbsoluteUrl(url: string): string {
+  try {
+    new URL(url);
+    return url; // URL is already absolute
+  } catch {
+    // URL is relative or invalid, make it absolute
+    return url.startsWith('http') ? url : `https://${url}`;
+  }
 }
