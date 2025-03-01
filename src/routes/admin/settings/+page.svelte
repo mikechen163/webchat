@@ -370,9 +370,12 @@
     }
   }
 
-  function selectDiscoveredModel(model) {
-    newModel.model = model.id;
-    newModel.name = model.name;
+  function selectDiscoveredModel(event) {
+    const selectedModel = discoveredModels.find(m => m.id === event.detail);
+    if (selectedModel) {
+      newModel.model = selectedModel.id;
+      newModel.name = selectedModel.name;
+    }
   }
 
   function handleSubmitProvider() {
@@ -689,7 +692,7 @@
               
               <div>
                 <label for="model-select" class="block mb-1 font-medium">Model</label>
-                <Select onSelectedChange={(e) => selectDiscoveredModel(e.detail)} value={newModel.model}>
+                <Select onSelectedChange={selectDiscoveredModel} value={newModel.model}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select model" />
                   </SelectTrigger>
