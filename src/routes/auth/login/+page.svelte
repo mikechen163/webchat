@@ -9,6 +9,10 @@
   let error: string | null = null;
 </script>
 
+<svelte:head>
+  <meta http-equiv="Content-Security-Policy" content="form-action 'self'">
+</svelte:head>
+
 <div class="flex flex-col space-y-2 text-center">
   <h1 class="text-2xl font-semibold tracking-tight">Welcome back</h1>
   <p class="text-sm text-muted-foreground">Enter your credentials to continue</p>

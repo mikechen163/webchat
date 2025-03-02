@@ -15,30 +15,32 @@ export const handle: Handle = async ({ event, resolve }) => {
 
     const response = await resolve(event);
 
-    // const allowedOrigins = ['https://your_domain.com', 'http://localhost:3000'];
-
-    const allowedOrigins = import.meta.env.VITE_ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
-
-const origin = event.request.headers.get('Origin');
-if (origin && allowedOrigins.includes(origin)) {
-  response.headers.append('Access-Control-Allow-Origin', origin);
-}
+    // 获取请求的来源
+    const origin = event.request.headers.get('Origin');
     
-    // 添加 CORS 响应头
-    //response.headers.append('Access-Control-Allow-Origin', '*');  // 或指定域名
-    response.headers.append('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    response.headers.append('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    response.headers.append('Access-Control-Allow-Credentials', 'true');
+    // 如果存在 Origin 头，将其设置为允许的源
+    if (origin) {
+      response.headers.set('Access-Control-Allow-Origin', origin);
+      response.headers.set('Access-Control-Allow-Credentials', 'true');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+      // 添加 Vary 头以确保浏览器正确缓存响应
+      response.headers.append('Vary', 'Origin');
+    }
 
     return response;
   } else {
     // OPTIONS 预检请求处理
+    const origin = event.request.headers.get('Origin');
+    
     return new Response(null, {
+      status: 204,
       headers: {
-        'Access-Control-Allow-Origin': '*',  // 或指定域名
+        'Access-Control-Allow-Origin': origin || '',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
         'Access-Control-Allow-Credentials': 'true',
+        'Vary': 'Origin'
       }
     });
   }
