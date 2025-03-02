@@ -204,10 +204,10 @@
   }
 </script>
 
-<div class="w-full h-screen">
-  <div class="flex flex-col h-full">
+<div class="w-full h-[100dvh] flex flex-col">
+  <div class="flex flex-col flex-1 overflow-hidden">
     <!-- Header -->
-    <div class="border-b">
+    <div class="border-b flex-shrink-0">
       <div class="w-full px-2 md:px-4 py-3 md:py-4 flex items-center justify-center">
         {#if editingTitle}
           <form 
@@ -252,11 +252,11 @@
 
     <!-- Messages -->
     <div 
-      class="flex-1 overflow-y-auto min-h-0"
+      class="flex-1 overflow-y-auto"
       bind:this={messageContainer}
       on:scroll={handleScroll}
     >
-      <div class="w-full px-3 md:px-4 py-3 md:py-4 space-y-4">
+      <div class="w-full md:max-w-3xl lg:max-w-4xl mx-auto px-3 md:px-4 py-3 md:py-4 space-y-4">
         {#each messages as message (message.id)}
           <ChatBubble 
             role={message.role}
@@ -269,16 +269,16 @@
 
     <!-- Typing Indicator -->
     {#if sending}
-      <div class="shrink-0">
-        <div class="w-full px-3 md:px-4 py-2 text-sm text-gray-500">
+      <div class="flex-shrink-0">
+        <div class="w-full md:max-w-3xl lg:max-w-4xl mx-auto px-3 md:px-4 py-2 text-sm text-gray-500">
           Bot is typing...
         </div>
       </div>
     {/if}
 
     <!-- Input part -->
-    <div class="border-t shrink-0">
-      <div class="w-full px-3 md:px-4 py-3 md:py-4">
+    <div class="border-t flex-shrink-0 bg-white">
+      <div class="w-full md:max-w-3xl lg:max-w-4xl mx-auto px-3 md:px-4 py-3 md:py-4">
         <!-- Tool bar -->
         <div class="mb-2 flex items-center gap-2 text-sm text-gray-600 overflow-x-auto pb-1">
           {#each tools as tool}
@@ -295,26 +295,30 @@
         </div>
         
         <!-- Message input form -->
-        <form on:submit|preventDefault={handleSubmit} class="flex items-center gap-2">
-          <Input
-            type="text"
-            bind:value={messageInput}
-            placeholder="Send a Message"
-            disabled={sending}
-            class="flex-1 h-[40px] md:h-[48px] rounded-[24px] text-sm md:text-base px-4 md:px-6 bg-white border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
-          <Button 
-            type="submit" 
-            disabled={sending}
-            class="h-10 w-10 md:h-12 md:w-12 rounded-full p-0 flex items-center justify-center bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-            variant="default"
-          >
-            {#if sending}
-              <div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-            {:else}
-              <ArrowUp class="h-5 w-5 md:h-6 md:w-6" />
-            {/if}
-          </Button>
+        <form on:submit|preventDefault={handleSubmit} class="flex items-center gap-2 max-w-full">
+          <div class="flex-1 min-w-0">
+            <Input
+              type="text"
+              bind:value={messageInput}
+              placeholder="Send a Message"
+              disabled={sending}
+              class="w-full h-[40px] md:h-[48px] rounded-[24px] text-sm md:text-base px-4 md:px-6 bg-white border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div class="flex-shrink-0">
+            <Button 
+              type="submit" 
+              disabled={sending}
+              class="h-10 w-10 md:h-12 md:w-12 rounded-full p-0 flex items-center justify-center bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              variant="default"
+            >
+              {#if sending}
+                <div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+              {:else}
+                <ArrowUp class="h-5 w-5 md:h-6 md:w-6" />
+              {/if}
+            </Button>
+          </div>
         </form>
       </div>
     </div>
