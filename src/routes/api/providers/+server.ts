@@ -6,17 +6,25 @@ import type { RequestHandler } from './$types';
 const prisma = new PrismaClient();
 
 // GET /api/providers - List all providers
-export const GET: RequestHandler = async ({ locals }) => {
-  // Check authentication
-  const session = locals.auth;
-  if (!session || session.user.role !== 'admin') {
-    throw error(403, 'Unauthorized');
-  }
-
+export const GET: RequestHandler = async () => {
   try {
     const providers = await prisma.provider.findMany({
+      where: {
+        modelConfigs: {
+          some: {
+            enabled: true
+          }
+        }
+      },
+      select: {
+        id: true,      // 确保返回 id
+        name: true,
+        type: true,
+      },
       orderBy: { name: 'asc' }
     });
+
+    console.log('Found providers:', providers); // 添加调试日志
     return json(providers);
   } catch (e) {
     console.error('Error fetching providers:', e);

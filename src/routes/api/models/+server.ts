@@ -1,26 +1,46 @@
 import { json } from '@sveltejs/kit';
 import { PrismaClient } from '@prisma/client';
 import { error } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
 
 const prisma = new PrismaClient();
 
-// GET /api/models - List all models
-export async function GET() {
+export const GET: RequestHandler = async ({ url }) => {
   try {
-    const models = await prisma.modelConfig.findMany({
-      include: {
-        provider: {
-          select: {
-            name: true,
-            type: true
-          }
-        }
-      },
-      orderBy: { name: 'asc' }
+    const providerId = url.searchParams.get('providerId');
+    console.log('Fetching models for provider:', providerId);
+    
+    if (!providerId) {
+      throw error(400, 'providerId is required');
+    }
+
+    // 先检查 provider 是否存在
+    const provider = await prisma.provider.findUnique({
+      where: { id: providerId }
     });
+
+    if (!provider) {
+      console.log('Provider not found:', providerId);
+      throw error(404, 'Provider not found');
+    }
+
+    // 查询该 provider 的所有模型
+    const models = await prisma.modelConfig.findMany({
+      where: {
+        providerId: providerId,
+        enabled: true
+      }
+    });
+
+    console.log(`Provider ${provider.name} (${providerId}) has ${models.length} models:`, 
+      models.map(m => ({ id: m.id, name: m.name }))
+    );
+    
     return json(models);
+    
   } catch (e) {
     console.error('Error fetching models:', e);
+    if (e.status === 404) throw e;
     throw error(500, 'Failed to fetch models');
   }
 }

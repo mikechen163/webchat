@@ -208,41 +208,35 @@
   <div class="flex flex-col h-full">
     <!-- Header -->
     <div class="border-b">
-      <div class="w-full px-2 md:px-4 py-3 md:py-4 flex items-center justify-between">
-        <div class="w-auto">
-          <ModelSelector />
-        </div>
+      <div class="w-full px-2 md:px-4 py-3 md:py-4 flex items-center justify-center">
+        {#if editingTitle}
+          <form 
+            on:submit|preventDefault={updateTitle}
+            class="flex items-center gap-2"
+          >
+            <Input
+              bind:value={newTitle}
+              class="w-64"
+              autofocus
+              on:blur={() => editingTitle = false}
+            />
+          </form>
+        {:else}
+          <button 
+            type="button"
+            class="text-lg md:text-xl font-semibold hover:text-gray-600 text-center truncate max-w-[80%]"
+            on:click={() => editingTitle = true}
+            on:keydown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                editingTitle = true;
+              }
+            }}
+          >
+            {data.session.title}
+          </button>
+        {/if}
         
-        <div class="flex-1 flex justify-center mx-4 min-w-0">
-          {#if editingTitle}
-            <form 
-              on:submit|preventDefault={updateTitle}
-              class="flex items-center gap-2"
-            >
-              <Input
-                bind:value={newTitle}
-                class="w-64"
-                autofocus
-                on:blur={() => editingTitle = false}
-              />
-            </form>
-          {:else}
-            <button 
-              type="button"
-              class="text-lg md:text-xl font-semibold hover:text-gray-600 text-center truncate max-w-[80%]"
-              on:click={() => editingTitle = true}
-              on:keydown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  editingTitle = true;
-                }
-              }}
-            >
-              {data.session.title}
-            </button>
-          {/if}
-        </div>
-        
-        <div>
+        <div class="absolute right-2 md:right-4">
           <Button 
             variant="ghost" 
             size="icon"
@@ -296,6 +290,8 @@
               <span class="text-xs md:text-sm">{tool.label}</span>
             </button>
           {/each}
+          <div class="h-5 border-l border-gray-200 mx-1"></div>
+          <ModelSelector showFullName={true} />
         </div>
         
         <!-- Message input form -->
