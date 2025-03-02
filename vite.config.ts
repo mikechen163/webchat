@@ -24,5 +24,12 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
+    proxy: {
+      // 添加代理配置
+      '/api': {
+        target: 'http://your-backend-url',
+        changeOrigin: true,
+        secure: false
+      }
   },
 });

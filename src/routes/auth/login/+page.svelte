@@ -5,6 +5,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
 
+  export let data; // 从服务器接收数据
   let loading = false;
   let error: string | null = null;
 </script>
@@ -30,6 +31,9 @@
       };
     }}
   >
+  <input type="hidden" name="csrf" value={data.csrf}>
+  
+
     <div class="space-y-2">
       <Label for="email">Email</Label>
       <Input id="email" name="email" type="email" required />

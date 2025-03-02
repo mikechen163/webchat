@@ -8,18 +8,42 @@ import { redirect } from '@sveltejs/kit';
 const prisma = new PrismaClient();
 
 // 如果用户已登录，重定向到聊天页面
-export const load: PageServerLoad = async ({ locals }) => {
-  if (locals.auth.session) {
-    throw redirect(302, "/chat");
-  }
-  return {};
+export const load: PageServerLoad = async (event) => {
+  // 生成 CSRF token
+  const csrf = crypto.randomUUID();
+  event.cookies.set('csrf', csrf, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production'
+  });
+
+  return {
+    csrf
+  };
 };
 
 export const actions: Actions = {
   default: async ({ request, locals, cookies }) => {
     const form = await request.formData();
+
+    
+
     const email = form.get("email");
     const password = form.get("password");
+
+
+    const csrf = form.get('csrf');
+    const storedCsrf = cookies.get('csrf');
+
+
+    // 验证 CSRF token
+    if (csrf !== storedCsrf) {
+      return fail(403, {
+        success: false,
+        message: 'CSRF token validation failed'
+      });
+    }
 
     if (
       typeof email !== "string" ||
