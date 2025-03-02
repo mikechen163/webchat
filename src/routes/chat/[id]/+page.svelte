@@ -208,12 +208,12 @@
   <div class="flex flex-col h-full">
     <!-- Header -->
     <div class="border-b">
-      <div class="max-w-full md:max-w-[1000px] mx-auto px-2 md:px-4 py-3 md:py-4 flex items-center justify-between">
-        <div class="w-10">
-          <!-- Spacer element to balance the header -->
+      <div class="w-full px-2 md:px-4 py-3 md:py-4 flex items-center justify-between">
+        <div class="w-auto">
+          <ModelSelector />
         </div>
         
-        <div class="flex-1 flex justify-center">
+        <div class="flex-1 flex justify-center mx-4 min-w-0">
           {#if editingTitle}
             <form 
               on:submit|preventDefault={updateTitle}
@@ -262,7 +262,7 @@
       bind:this={messageContainer}
       on:scroll={handleScroll}
     >
-      <div class="max-w-full md:max-w-[1000px] mx-auto px-3 md:px-4 py-3 md:py-4 space-y-4">
+      <div class="w-full px-3 md:px-4 py-3 md:py-4 space-y-4">
         {#each messages as message (message.id)}
           <ChatBubble 
             role={message.role}
@@ -276,7 +276,7 @@
     <!-- Typing Indicator -->
     {#if sending}
       <div class="shrink-0">
-        <div class="max-w-full md:max-w-[1000px] mx-auto px-3 md:px-4 py-2 text-sm text-gray-500">
+        <div class="w-full px-3 md:px-4 py-2 text-sm text-gray-500">
           Bot is typing...
         </div>
       </div>
@@ -284,7 +284,7 @@
 
     <!-- Input part -->
     <div class="border-t shrink-0">
-      <div class="max-w-full md:max-w-[1000px] mx-auto px-3 md:px-4 py-3 md:py-4">
+      <div class="w-full px-3 md:px-4 py-3 md:py-4">
         <!-- Tool bar -->
         <div class="mb-2 flex items-center gap-2 text-sm text-gray-600 overflow-x-auto pb-1">
           {#each tools as tool}
@@ -296,7 +296,6 @@
               <span class="text-xs md:text-sm">{tool.label}</span>
             </button>
           {/each}
-          <ModelSelector />
         </div>
         
         <!-- Message input form -->
