@@ -5,7 +5,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
 
-  const allowedOrigins = import.meta.env.VITE_ALLOWED_ORIGINS;
+  const allowedOrigins = import.meta.env.PUBLIC_ALLOWED_ORIGINS;
 
   let loading = false;
   let error: string | null = null;

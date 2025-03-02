@@ -1,7 +1,7 @@
 import { auth } from "$lib/server/auth";
 import type { Handle } from "@sveltejs/kit";
 
-const ALLOWED_ORIGINS = import.meta.env.VITE_ALLOWED_ORIGINS?.split(',') || [];
+const ALLOWED_ORIGINS = import.meta.env.PUBLIC_ALLOWED_ORIGINS?.split(',') || [];
 
 export const handle: Handle = async ({ event, resolve }) => {
   if (event.request.method !== 'OPTIONS') {
