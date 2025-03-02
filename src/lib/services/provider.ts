@@ -52,11 +52,15 @@ async function testOpenAIKey(apiKey: string, baseUrl?: string): Promise<boolean>
   try {
     // Sanitize the API key - remove any non-ASCII characters
     const sanitizedApiKey = apiKey.replace(/[^\x00-\x7F]/g, '').trim();
+
+    console.log(`Testing OpenAI key with sanitize baseurl: ${baseUrl}`);
     
     // Ensure baseUrl is a fully qualified URL
     const url = baseUrl ? 
-      new URL('/v1/models', ensureAbsoluteUrl(baseUrl)).toString() : 
+       baseUrl + '/models' : 
       'https://api.openai.com/v1/models';
+
+      console.log(`Testing OpenAI key with URL: ${url}`);
     
     const response = await fetch(url, {
       method: 'GET',
@@ -75,9 +79,16 @@ async function testOpenAIKey(apiKey: string, baseUrl?: string): Promise<boolean>
 
 async function fetchOpenAIModels(apiKey: string, baseUrl?: string): Promise<Model[]> {
   // Ensure baseUrl is a fully qualified URL
+  // const url = baseUrl ? 
+  //   new URL('/v1/models', ensureAbsoluteUrl(baseUrl)).toString() : 
+  //   'https://api.openai.com/v1/models';
+
   const url = baseUrl ? 
-    new URL('/v1/models', ensureAbsoluteUrl(baseUrl)).toString() : 
-    'https://api.openai.com/v1/models';
+  baseUrl + '/models' : 
+ 'https://api.openai.com/v1/models';
+
+      console.log(`Testing OpenAI key with URL: ${url}`);
+    
   
   const response = await fetch(url, {
     method: 'GET',
@@ -92,18 +103,26 @@ async function fetchOpenAIModels(apiKey: string, baseUrl?: string): Promise<Mode
   }
   
   const data = await response.json();
+  console.log('OpenAI Models:', data);
   
-  // Filter for chat models
-  return data.data
-    .filter((model: any) => 
-      model.id.includes('gpt') || 
-      model.id.includes('text-davinci') ||
-      model.id.includes('claude')
-    )
-    .map((model: any) => ({
-      id: model.id,
-      name: model.id
-    }));
+  // // Filter for chat models
+  // return data.data
+  //   .filter((model: any) => 
+  //     model.id.includes('gpt') || 
+  //     model.id.includes('text-davinci') ||
+  //     model.id.includes('claude')
+  //   )
+  //   .map((model: any) => ({
+  //     id: model.id,
+  //     name: model.id
+  //   }));
+
+    // 保留全部结果并转换格式
+return data.data.map((model: any) => ({
+  id: model.id,
+  name: model.id
+}));
+
 }
 
 // Gemini Implementation
