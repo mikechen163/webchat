@@ -1,10 +1,14 @@
 import { auth } from "$lib/server/auth";
 import type { Handle } from "@sveltejs/kit";
 import { debug } from "$lib/utils/debug";
+import { env } from "$env/dynamic/public";
 
-const ALLOWED_ORIGINS = import.meta.env.PUBLIC_ALLOWED_ORIGINS?.split(',') || [];
+const ALLOWED_ORIGINS = env.PUBLIC_ALLOWED_ORIGINS?.split(',') || [];
 
-debug('Config', { ALLOWED_ORIGINS });
+debug('Config', { 
+  ALLOWED_ORIGINS,
+  rawEnv: env.PUBLIC_ALLOWED_ORIGINS 
+});
 
 export const handle: Handle = async ({ event, resolve }) => {
   const origin = event.request.headers.get('Origin');
