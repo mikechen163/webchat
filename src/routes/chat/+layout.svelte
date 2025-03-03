@@ -210,7 +210,7 @@
   on:click={handleGlobalClick} 
 />
 
-<div class="h-screen flex">
+<div class="h-screen flex overflow-hidden">
   <!-- 移动端顶部菜单按钮 -->
   {#if innerWidth < 768}
     <button
@@ -226,9 +226,9 @@
     {$sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
     md:translate-x-0
     transition-transform duration-200
-    fixed md:relative
-    z-40 md:z-auto
-    w-[240px]
+    fixed md:static
+    z-40 md:z-0
+    w-[240px] md:w-[240px] md:min-w-[240px] md:max-w-[240px]
     bg-[#f7f7f7]
     flex flex-col
     h-full
@@ -314,7 +314,7 @@
   {/if}
 
   <!-- Main Content with loading indicator -->
-  <div class="flex-1 flex flex-col relative h-full">
+  <div class="flex-1 flex flex-col relative h-full w-full overflow-hidden">
     <!-- 内容部分 (消息和输入区域) 由子页面填充 -->
     <slot />
   </div>
