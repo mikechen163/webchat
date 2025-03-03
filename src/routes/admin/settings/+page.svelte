@@ -523,18 +523,49 @@
 
   let isEditing = false;
   let editingProviderId = null;
+  let showApiKey = false; // New state to toggle API key visibility
 
-  function handleEditProvider(provider) {
+  async function handleEditProvider(provider) {
     isEditing = true;
     editingProviderId = provider.id;
-    newProvider = {
-      name: provider.name,
-      type: provider.type,
-      baseUrl: provider.baseUrl || "",
-      apiKey: provider.apiKey || "",
-      isCustom: provider.isCustom
-    };
+    showApiKey = false; // Reset API key visibility to hidden
+    
+    try {
+      // Fetch the full provider details including API key
+      const response = await fetch(`/api/providers/${provider.id}`);
+      if (response.ok) {
+        const fullProvider = await response.json();
+        newProvider = {
+          name: fullProvider.name,
+          type: fullProvider.type,
+          baseUrl: fullProvider.baseUrl || "",
+          apiKey: fullProvider.apiKey || "",
+          isCustom: fullProvider.isCustom
+        };
+      } else {
+        throw new Error("Failed to fetch provider details");
+      }
+    } catch (err) {
+      showToast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to load provider details",
+        type: "error"
+      });
+      // Fall back to basic info if we can't get the full details
+      newProvider = {
+        name: provider.name,
+        type: provider.type,
+        baseUrl: provider.baseUrl || "",
+        apiKey: "",
+        isCustom: provider.isCustom
+      };
+    }
+    
     showProviderDialog = true;
+  }
+
+  function toggleApiKeyVisibility() {
+    showApiKey = !showApiKey;
   }
 
   async function updateProvider() {
@@ -646,7 +677,7 @@
                 <label for="provider-name" class="block mb-1 font-medium">Provider Name</label>
                 <Input id="provider-name" 
                        bind:value={newProvider.name} 
-                       placeholder={isEditing ? newProvider.name : "e.g., OpenAI Production"} 
+                       placeholder="e.g., OpenAI Production" 
                        required />
               </div>
               
@@ -673,13 +704,30 @@
                   API Key
                   <span class="text-xs font-normal text-gray-500">{isEditing ? "(leave unchanged to keep current key)" : "(required)"}</span>
                 </label>
-                <Input 
-                  id="provider-api-key" 
-                  type="password"
-                  bind:value={newProvider.apiKey} 
-                  placeholder={isEditing ? "••••••••••••••••" : "Enter API key"}
-                  required={!isEditing}
-                />
+                <div class="flex">
+                  <Input 
+                    id="provider-api-key" 
+                    type={showApiKey ? "text" : "password"}
+                    bind:value={newProvider.apiKey} 
+                    placeholder={isEditing && !newProvider.apiKey ? "••••••••••••••••" : "Enter API key"}
+                    required={!isEditing}
+                    class="flex-grow"
+                  />
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    class="ml-1 px-2" 
+                    on:click={toggleApiKeyVisibility}
+                  >
+                    {#if showApiKey}
+                      <!-- Eye-off icon -->
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                    {:else}
+                      <!-- Eye icon -->
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    {/if}
+                  </Button>
+                </div>
               </div>
 
               <div>
@@ -690,7 +738,7 @@
                 <Input 
                   id="base-url" 
                   bind:value={newProvider.baseUrl} 
-                  placeholder={isEditing ? newProvider.baseUrl || "https://api.example.com/v1" : "https://api.example.com/v1"} 
+                  placeholder="https://api.example.com/v1" 
                 />
               </div>
 
