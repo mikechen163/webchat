@@ -3,6 +3,7 @@ import { fail, redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
+import { PUBLIC_EXTERNAL_DOMAIN } from '$env/static/public';
 
 const prisma = new PrismaClient();
 
@@ -52,14 +53,18 @@ export const actions: Actions = {
         {}
       );
 
-      // 登录成功后设置会话 Cookie
+      // 登录成功后设置会话 Cookie - 使用环境变量确定Cookie设置
       const sessionCookie = auth.createSessionCookie(session.id);
+      
+      // 判断是否跨域场景
+      const isCrossDomain = !!PUBLIC_EXTERNAL_DOMAIN;
+      
       cookies.set(sessionCookie.name, sessionCookie.value, { 
         ...sessionCookie.attributes,
         path: '/',
-        httpOnly: true,  // 防止 JavaScript 访问，增强安全性
-        secure: process.env.NODE_ENV === 'production',  // 生产环境使用 HTTPS 时设为 true
-        sameSite: 'lax',  // 同域环境下使用 'lax' 更合适
+        httpOnly: true,
+        secure: true,
+        sameSite: isCrossDomain ? 'none' : 'lax',
         maxAge: 60 * 60 * 24 * 7  // 7天有效期
       });
       

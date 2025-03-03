@@ -2,6 +2,7 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { cubicOut } from "svelte/easing";
 import type { TransitionConfig } from "svelte/transition";
+import { PUBLIC_EXTERNAL_DOMAIN } from '$env/static/public';
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
@@ -60,3 +61,23 @@ export const flyAndScale = (
 		easing: cubicOut
 	};
 };
+
+/**
+ * Get cookie options based on environment
+ * @returns Cookie options suitable for cross-origin usage when needed
+ */
+export function getCrossDomainCookieOptions() {
+  // Determine if we're in cross-domain scenario
+  const isCrossDomain = PUBLIC_EXTERNAL_DOMAIN && 
+    PUBLIC_EXTERNAL_DOMAIN !== `${window.location.protocol}//${window.location.host}`;
+  
+  return {
+    path: '/',
+    httpOnly: true,
+    secure: true,
+    sameSite: isCrossDomain ? 'none' : 'lax',
+    maxAge: 60 * 60 * 24 * 7 // 7 days
+  };
+}
+
+// Add other utility functions as needed

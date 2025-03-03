@@ -30,6 +30,9 @@
       };
     }}
   >
+    <!-- Add a hidden CSRF token field if you're implementing CSRF protection -->
+    <input type="hidden" name="csrf_check" value="true" />
+    
     <div class="space-y-2">
       <Label for="email">Email</Label>
       <Input id="email" name="email" type="email" required />
