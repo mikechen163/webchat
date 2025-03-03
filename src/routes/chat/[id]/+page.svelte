@@ -11,6 +11,7 @@
   import { ArrowUp, Trash2 } from "lucide-svelte";
   import ModelSelector from "$lib/components/ModelSelector.svelte";
   import { selectedModel } from "$lib/stores/selectedModel";
+  import { browser } from "$app/environment";
 
   export let data;
   let messages = data.messages || [];
@@ -25,14 +26,45 @@
   let typingTimeout: NodeJS.Timeout;
   let lastTypingUpdate = 0;
 
+  let viewportHeight = 0;
+  
+  function updateViewportHeight() {
+    if (browser) {
+      viewportHeight = window.innerHeight;
+      document.documentElement.style.setProperty('--viewport-height', `${viewportHeight}px`);
+    }
+  }
+
+  onMount(() => {
+    updateViewportHeight();
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', () => {
+      // Small delay to ensure the orientation change completes
+      setTimeout(updateViewportHeight, 100);
+    });
+
+    // On mobile browsers, address bar can appear/disappear causing height changes
+    window.visualViewport?.addEventListener('resize', updateViewportHeight);
+    
+    const draft = localStorage.getItem(`draft_${$page.params.id}`);
+    if (draft) messageInput = draft;
+  });
+
+  onDestroy(() => {
+    if (browser) {
+      window.removeEventListener('resize', updateViewportHeight);
+      window.visualViewport?.removeEventListener('resize', updateViewportHeight);
+    }
+    clearTimeout(typingTimeout);
+  });
 
   // 添加工具栏状态控制
   let showTools = false;
   
   // 修改工具选项
   const tools = [
-    { id: 'thinking', label: 'Thinking', icon: '🤔' },
-    { id: 'websearch', label: 'Web Search', icon: '🌐' },
+    { id: 'thinking', label: '', icon: '🤔' },
+    { id: 'websearch', label: '', icon: '🌐' },
   ];
 
   // 添加工具选择处理函数
@@ -55,15 +87,6 @@
     lastTypingUpdate = now;
     localStorage.setItem(`draft_${$page.params.id}`, messageInput);
   }
-
-  onMount(() => {
-    const draft = localStorage.getItem(`draft_${$page.params.id}`);
-    if (draft) messageInput = draft;
-  });
-
-  onDestroy(() => {
-    clearTimeout(typingTimeout);
-  });
 
   function handleScroll(e: Event) {
     const target = e.target as HTMLDivElement;
@@ -204,10 +227,23 @@
   }
 </script>
 
-<div class="w-full h-screen">
-  <div class="flex flex-col h-full">
+<svelte:head>
+  <style>
+    :root {
+      --viewport-height: 100vh;
+    }
+    @supports (height: 100dvh) {
+      :root {
+        --viewport-height: 100dvh;
+      }
+    }
+  </style>
+</svelte:head>
+
+<div class="w-full h-[var(--viewport-height)] flex flex-col">
+  <div class="flex flex-col flex-1 overflow-hidden">
     <!-- Header -->
-    <div class="border-b">
+    <div class="border-b flex-shrink-0">
       <div class="w-full px-2 md:px-4 py-3 md:py-4 flex items-center justify-center">
         {#if editingTitle}
           <form 
@@ -252,11 +288,11 @@
 
     <!-- Messages -->
     <div 
-      class="flex-1 overflow-y-auto min-h-0"
+       class="flex-1 overflow-y-auto overscroll-contain"
       bind:this={messageContainer}
       on:scroll={handleScroll}
     >
-      <div class="w-full px-3 md:px-4 py-3 md:py-4 space-y-4">
+      <div class="w-full md:max-w-3xl lg:max-w-4xl mx-auto px-3 md:px-4 py-3 md:py-4 space-y-4">
         {#each messages as message (message.id)}
           <ChatBubble 
             role={message.role}
@@ -276,9 +312,9 @@
       </div>
     {/if}
 
-    <!-- Input part -->
-    <div class="border-t shrink-0">
-      <div class="w-full px-3 md:px-4 py-3 md:py-4">
+    <!-- Input part - Fixed position on mobile -->
+    <div class="border-t flex-shrink-0 bg-white sticky bottom-0 left-0 right-0 z-10">
+      <div class="w-full md:max-w-3xl lg:max-w-4xl mx-auto px-3 md:px-4 py-3 md:py-4">
         <!-- Tool bar -->
         <div class="mb-2 flex items-center gap-2 text-sm text-gray-600 overflow-x-auto pb-1">
           {#each tools as tool}
@@ -295,7 +331,7 @@
         </div>
         
         <!-- Message input form -->
-        <form on:submit|preventDefault={handleSubmit} class="flex items-center gap-2">
+        <form on:submit|preventDefault={handleSubmit} class="flex items-center gap-2 max-w-full">
           <Input
             type="text"
             bind:value={messageInput}
@@ -318,5 +354,8 @@
         </form>
       </div>
     </div>
+    
+    <!-- Bottom padding to ensure content isn't hidden behind keyboard on mobile -->
+    <div class="h-2 md:hidden flex-shrink-0"></div>
   </div>
 </div>
