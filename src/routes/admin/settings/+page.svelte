@@ -74,11 +74,25 @@
     { value: "custom", label: "Custom OpenAI Compatible" }
   ];
 
+  let providersModels = {}; // Store models by provider ID
+
   async function loadProviders() {
     try {
       const response = await fetch('/api/providers');
       if (response.ok) {
         providers = await response.json();
+        
+        // Also load all models
+        await loadModels();
+        
+        // Group models by provider ID
+        providersModels = models.reduce((acc, model) => {
+          if (!acc[model.providerId]) {
+            acc[model.providerId] = [];
+          }
+          acc[model.providerId].push(model);
+          return acc;
+        }, {});
       } else {
         showToast({
           title: "Error",
@@ -294,6 +308,8 @@
     };
     isEditing = false;
     editingProviderId = null;
+    discoveredModels = [];
+    customModels = [];
   }
 
   function resetModelForm() {
@@ -404,7 +420,23 @@
 
       const result = await response.json();
       if (result.success) {
-        discoveredModels = (result.models || []).map(m => ({ ...m, enabled: false }));
+        // Get existing models for this provider
+        const existingModels = isEditing && editingProviderId ? 
+          (providersModels[editingProviderId] || []) : [];
+        
+        // Mark models as enabled if they already exist for this provider
+        discoveredModels = (result.models || []).map(m => {
+          // Check if this model already exists for this provider
+          const modelExists = existingModels.some(
+            existingModel => existingModel.model === m.id
+          );
+          
+          return { 
+            ...m, 
+            enabled: modelExists 
+          };
+        });
+        
         isCustomProvider = discoveredModels.length === 0;
         showToast({
           title: "Success",
@@ -542,6 +574,14 @@
           apiKey: fullProvider.apiKey || "",
           isCustom: fullProvider.isCustom
         };
+        
+        // Load custom models if editing the provider
+        if (providersModels[provider.id]) {
+          customModels = providersModels[provider.id].map(model => ({
+            name: model.model,
+            enabled: true
+          }));
+        }
       } else {
         throw new Error("Failed to fetch provider details");
       }
