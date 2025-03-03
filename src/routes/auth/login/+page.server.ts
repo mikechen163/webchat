@@ -1,9 +1,8 @@
 import { auth } from "$lib/server/auth";
-import { fail } from "@sveltejs/kit";
+import { fail, redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
-import { redirect } from '@sveltejs/kit';
 
 const prisma = new PrismaClient();
 
@@ -50,13 +49,21 @@ export const actions: Actions = {
 
       const session = await auth.createSession(
         user.id,
-       
         {}
       );
 
+      // 登录成功后设置会话 Cookie
       const sessionCookie = auth.createSessionCookie(session.id);
-      cookies.set(sessionCookie.name, sessionCookie.value, { ...sessionCookie.attributes, path: '/' });
-      return { success: true }; // Return success instead of redirect
+      cookies.set(sessionCookie.name, sessionCookie.value, { 
+        ...sessionCookie.attributes,
+        path: '/',
+        httpOnly: true,  // 防止 JavaScript 访问，增强安全性
+        secure: process.env.NODE_ENV === 'production',  // 生产环境使用 HTTPS 时设为 true
+        sameSite: 'lax',  // 同域环境下使用 'lax' 更合适
+        maxAge: 60 * 60 * 24 * 7  // 7天有效期
+      });
+      
+      return { success: true };
     } catch (error) {
       console.error(error);
       return fail(500, {
@@ -65,7 +72,3 @@ export const actions: Actions = {
     }
   }
 };
-
-function redirect(arg0: number, arg1: string) {
-  throw new Error("Function not implemented.");
-}
