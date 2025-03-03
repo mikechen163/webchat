@@ -8,16 +8,10 @@ const prisma = new PrismaClient();
 // GET /api/providers - List all providers
 export const GET: RequestHandler = async () => {
   try {
+    // Modified to return ALL providers regardless of whether they have enabled models
     const providers = await prisma.provider.findMany({
-      where: {
-        modelConfigs: {
-          some: {
-            enabled: true
-          }
-        }
-      },
       select: {
-        id: true,      // 确保返回 id
+        id: true,
         name: true,
         type: true,
       },
