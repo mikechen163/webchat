@@ -59,6 +59,17 @@ const MAX_HISTORY_MESSAGES = 10;
 //   );
 // };
 
+export function OPTIONS() {
+  return new Response(null, {
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Credentials': 'true',
+    }
+  });
+}
+
 async function generateTitle(messages: any[]) {
   const prompt = `### Task:
 Generate a concise, 3-5 word title with an emoji summarizing the chat history.
