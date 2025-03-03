@@ -530,8 +530,8 @@
     newProvider = {
       name: provider.name,
       type: provider.type,
-      baseUrl: provider.baseUrl,
-      apiKey: provider.apiKey,
+      baseUrl: provider.baseUrl || "",
+      apiKey: provider.apiKey || "",
       isCustom: provider.isCustom
     };
     showProviderDialog = true;
@@ -593,7 +593,7 @@
       <CardContent>
         <div class="space-y-4">
           {#if providers.length > 0}
-            <div class="grid gap-4">
+            <div class="grid gap-4 max-h-[400px] overflow-y-auto pr-2">
               {#each providers as provider}
                 <div class="border rounded-md p-4 flex justify-between items-center">
                   <div>
@@ -644,7 +644,10 @@
             <form class="space-y-4 pt-4" on:submit|preventDefault>
               <div>
                 <label for="provider-name" class="block mb-1 font-medium">Provider Name</label>
-                <Input id="provider-name" bind:value={newProvider.name} placeholder="e.g., OpenAI Production" required />
+                <Input id="provider-name" 
+                       bind:value={newProvider.name} 
+                       placeholder={isEditing ? newProvider.name : "e.g., OpenAI Production"} 
+                       required />
               </div>
               
               <div>
@@ -668,26 +671,28 @@
               <div>
                 <label for="provider-api-key" class="block mb-1 font-medium">
                   API Key
-                  <span class="text-xs font-normal text-gray-500">(required)</span>
+                  <span class="text-xs font-normal text-gray-500">{isEditing ? "(leave unchanged to keep current key)" : "(required)"}</span>
                 </label>
                 <Input 
                   id="provider-api-key" 
                   type="password"
                   bind:value={newProvider.apiKey} 
-                  placeholder="Enter API key"
-                  required 
+                  placeholder={isEditing ? "••••••••••••••••" : "Enter API key"}
+                  required={!isEditing}
                 />
               </div>
 
-              <!-- {#if newProvider.type === "custom" || !newProvider.baseUrl} -->
-                <div>
-                  <label for="base-url" class="block mb-1 font-medium">
-                    Base URL
-                    <span class="text-xs font-normal text-gray-500">(for custom endpoints)</span>
-                  </label>
-                  <Input id="base-url" bind:value={newProvider.baseUrl} placeholder="https://api.example.com/v1" />
-                </div>
-              <!-- {/if} -->
+              <div>
+                <label for="base-url" class="block mb-1 font-medium">
+                  Base URL
+                  <span class="text-xs font-normal text-gray-500">(for custom endpoints)</span>
+                </label>
+                <Input 
+                  id="base-url" 
+                  bind:value={newProvider.baseUrl} 
+                  placeholder={isEditing ? newProvider.baseUrl || "https://api.example.com/v1" : "https://api.example.com/v1"} 
+                />
+              </div>
 
               <div class="flex justify-center">
                 <Button 
