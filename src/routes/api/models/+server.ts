@@ -8,13 +8,29 @@ const prisma = new PrismaClient();
 export const GET: RequestHandler = async ({ url }) => {
   try {
     const providerId = url.searchParams.get('providerId');
-    console.log('Fetching models for provider:', providerId);
     
+    // If no providerId is provided, return all models
     if (!providerId) {
-      throw error(400, 'providerId is required');
+      console.log('No providerId provided, returning all models');
+      
+      const allModels = await prisma.modelConfig.findMany({
+        include: {
+          provider: {
+            select: {
+              id: true,
+              name: true,
+              type: true
+            }
+          }
+        }
+      });
+      
+      return json(allModels);
     }
+    
+    console.log('Fetching models for provider:', providerId);
 
-    // 先检查 provider 是否存在
+    // Check if provider exists
     const provider = await prisma.provider.findUnique({
       where: { id: providerId }
     });
@@ -24,7 +40,7 @@ export const GET: RequestHandler = async ({ url }) => {
       throw error(404, 'Provider not found');
     }
 
-    // 查询该 provider 的所有模型
+    // Query models for this provider
     const models = await prisma.modelConfig.findMany({
       where: {
         providerId: providerId,

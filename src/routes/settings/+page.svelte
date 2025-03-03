@@ -12,10 +12,18 @@
     baseUrl: "",
     apiKey: "",
     model: "",
-    enabled: true
+    enabled: true,
+    providerId: "" // Added providerId field
   };
 
   async function handleSubmit() {
+    // Validate required fields
+    if (!newModel.providerId) {
+      // You could add proper validation message here
+      console.error("Provider is required");
+      return;
+    }
+    
     const response = await fetch("/api/models", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -24,7 +32,7 @@
     
     if (response.ok) {
       models = [...models, await response.json()];
-      newModel = { name: "", baseUrl: "", apiKey: "", model: "", enabled: true };
+      newModel = { name: "", baseUrl: "", apiKey: "", model: "", enabled: true, providerId: "" };
     }
   }
 
@@ -80,6 +88,10 @@
           <div class="space-y-2">
             <Label for="model">Model</Label>
             <Input id="model" bind:value={newModel.model} required />
+          </div>
+          <div class="space-y-2">
+            <Label for="providerId">Provider</Label>
+            <Input id="providerId" bind:value={newModel.providerId} required />
           </div>
         </div>
         <Button type="submit">Add Model</Button>
