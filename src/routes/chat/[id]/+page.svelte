@@ -8,7 +8,7 @@
   import { toast } from "$lib/components/ui/toast";
   import { onDestroy } from "svelte";
   import { sessionsStore } from '$lib/stores/sessions';
-  import { ArrowUp, Trash2, Search } from "lucide-svelte";
+  import { ArrowUp, Trash2, Search, X } from "lucide-svelte";
   import ModelSelector from "$lib/components/ModelSelector.svelte";
   import { selectedModel } from "$lib/stores/selectedModel";
   import { browser } from "$app/environment";
@@ -136,10 +136,13 @@
     messageContainer.scrollTop = messageContainer.scrollHeight;
   }
 
+  let abortController: AbortController | null = null;
+
   async function handleSubmit() {
     if (!messageInput.trim() || sending) return;
     
     sending = true;
+    abortController = new AbortController();
     const userMessage = messageInput;
     messageInput = "";
     localStorage.removeItem(`draft_${$page.params.id}`);
@@ -192,7 +195,7 @@
 2. 提供准确和最新的信息
 3. 使用markdown格式以提高可读性
 4. 如果搜索结果看起来过时或不相关，请说明
-5. 引用具体信息时包含相关来源编号 [1], [2] 等`,
+5. 引用具体信息时包含相关带有来源(可点击)编号 [1], [2] 等`,
 
             en: `You are a helpful assistant with access to recent web search results. 
 Based on the following search results, provide a comprehensive but concise response.
@@ -204,7 +207,7 @@ Instructions:
 2. Provide accurate and up-to-date information
 3. Use markdown formatting for better readability
 4. If search results seem outdated or irrelevant, mention this
-5. Include relevant source numbers [1], [2], etc. when citing specific information`
+5. Include relevant clickable source  numbers [1], [2], etc. when citing specific information`
           };
 
           content = `${promptTemplate[userLang] || promptTemplate.en}
@@ -231,7 +234,8 @@ ${formattedResults}
         body: JSON.stringify({ 
           content,
           modelId: $selectedModel?.id,
-        })
+        }),
+        signal: abortController.signal
       });
 
       if (!response.ok) {
@@ -243,40 +247,75 @@ ${formattedResults}
 
       let assistantResponse = "";
       
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        const chunk = new TextDecoder().decode(value);
-        assistantResponse += chunk;
-        
-        messages = messages.map(msg => {
-          if (msg.id === tempAssistantMsgId) {
-            return { ...msg, content: assistantResponse };
-          }
-          return msg;
-        });
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = new TextDecoder().decode(value);
+          assistantResponse += chunk;
+          
+          messages = messages.map(msg => {
+            if (msg.id === tempAssistantMsgId) {
+              return { ...msg, content: assistantResponse };
+            }
+            return msg;
+          });
+        }
+      } catch (readError) {
+        if (readError.name === 'AbortError') {
+          throw readError; // Re-throw abort errors to be handled in the main catch block
+        }
+        throw new Error('Error reading response stream');
       }
 
       await checkAndUpdateSessionTitle();
       webSearchMode = false;
 
     } catch (e) {
-      console.error("[Chat] Submit error:", e);
-      toast({
-        title: "Error",
-        description: "Failed to send message",
-        type: "error"
-      });
-      messages = messages.slice(0, -1);
+      if (e.name === 'AbortError') {
+        console.log("[Chat] Request cancelled by user");
+        // Don't show toast here as it's handled in handleStop
+        return;
+      } else {
+        console.error("[Chat] Submit error:", e);
+        toast({
+          title: "Error",
+          description: "Failed to send message",
+          type: "error"
+        });
+        messages = messages.slice(0, -1);
+        messageInput = userMessage; // Restore the user's input on error
+      }
     } finally {
+      if (abortController) { // Only reset if not already handled by handleStop
+        sending = false;
+        abortController = null;
+      }
+    }
+  }
+
+  function handleStop() {
+    if (abortController) {
+      abortController.abort();
+      abortController = null;
+      // Remove the last assistant message when stopping
+      messages = messages.slice(0, -1);
+      // Reset sending state
       sending = false;
+      // Restore the user's input
+      messageInput = messages[messages.length - 1]?.content || "";
+      toast({
+        title: "Cancelled",
+        description: "Message generation stopped",
+        type: "info"
+      });
     }
   }
 
   async function checkAndUpdateSessionTitle() {
     let retries = 0;
-    const maxRetries = 5;
+    const maxRetries = 1;
     while (retries < maxRetries) {
       const sessionResponse = await fetch(`/api/chat/${$page.params.id}/session`);
       if (sessionResponse.ok) {
@@ -433,18 +472,30 @@ ${formattedResults}
             disabled={sending}
             class="flex-1 h-[40px] md:h-[48px] rounded-[24px] text-sm md:text-base px-4 md:px-6 bg-white border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           />
-          <Button 
-            type="submit"
-            disabled={sending}
-            class="h-10 w-10 md:h-12 md:w-12 rounded-full p-0 flex items-center justify-center bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-            variant="default"
-          >
+          <div class="flex gap-2">
             {#if sending}
-              <div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-            {:else}
-              <ArrowUp class="h-5 w-5 md:h-6 md:w-6" />
+              <Button 
+                type="button"
+                class="h-10 w-10 md:h-12 md:w-12 rounded-full p-0 flex items-center justify-center bg-red-500 hover:bg-red-600"
+                variant="destructive"
+                on:click={handleStop}
+              >
+                <X class="h-5 w-5 md:h-6 md:w-6" />
+              </Button>
             {/if}
-          </Button>
+            <Button 
+              type="submit"
+              disabled={sending}
+              class="h-10 w-10 md:h-12 md:w-12 rounded-full p-0 flex items-center justify-center bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              variant="default"
+            >
+              {#if sending}
+                <div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+              {:else}
+                <ArrowUp class="h-5 w-5 md:h-6 md:w-6" />
+              {/if}
+            </Button>
+          </div>
         </form>
         <!-- Bottom padding to ensure content isn't hidden behind keyboard on mobile -->
         <div class="h-2 md:hidden flex-shrink-0"></div>
