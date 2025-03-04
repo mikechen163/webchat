@@ -79,26 +79,89 @@
   $: console.log('Current webSearchMode:', webSearchMode); // 响应式调试日志
 
   async function performWebSearch(query: string) {
-    console.log('[Chat] Performing web search:', { query });
+    console.log('[Chat] Initial search query:', query);
+    
+    // First, analyze the query using the current model
     try {
-      const encodedQuery = encodeURIComponent(query.trim());
-      const response = await fetch(`/api/search?q=${encodedQuery}`);
-      
-      console.log('[Chat] Search response status:', response.status);
-      
+      const currentDate = new Date().toISOString().split('T')[0];
+      const analysisPrompt = `You are a search query optimizer. Analyze the following user query and create an optimized search query.
+Consider the current date: ${currentDate}
+Original query: "${query}"
+
+Instructions:
+1. Identify the core information need
+2. Extract key concepts and important terms
+3. Add temporal context if relevant
+4. Format the response as a JSON object with these fields:
+   - optimizedQuery: the improved search query string
+   - requiresTimeContext: boolean indicating if recent results are important
+   - rationale: brief explanation of your optimization
+
+Respond with valid JSON only.`;
+
+      const response = await fetch(`/api/chat/${$page.params.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          content: analysisPrompt,
+          modelId: $selectedModel?.id,
+          system: "You are a search query optimization assistant that only returns valid JSON."
+        })
+      });
+
       if (!response.ok) {
-        console.error('[Chat] Search request failed:', response.status, response.statusText);
+        throw new Error('Query analysis failed');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+
+      let analysisResult = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        analysisResult += new TextDecoder().decode(value);
+      }
+
+      let analysis;
+      try {
+        analysis = JSON.parse(analysisResult);
+      } catch (e) {
+        console.error('[Chat] Failed to parse analysis result:', e);
+        throw new Error('Invalid analysis result format');
+      }
+
+      console.log('[Chat] Query analysis:', analysis);
+
+      // Construct the final search query
+      let finalQuery = analysis.optimizedQuery;
+      // if (analysis.requiresTimeContext) {
+      //   finalQuery = `${finalQuery} after:${currentDate.slice(0, 4)}`;
+      // }
+
+      console.log('[Chat] Optimized search query:', finalQuery);
+
+      // Perform the actual search with the optimized query
+      const encodedQuery = encodeURIComponent(finalQuery.trim());
+      const searchResponse = await fetch(`/api/search?q=${encodedQuery}`);
+      
+      if (!searchResponse.ok) {
         throw new Error('Search failed');
       }
       
-      const data = await response.json();
+      const searchData = await searchResponse.json();
       console.log('[Chat] Search results received:', {
-        query,
-        resultsCount: data.results?.length || 0,
-        timestamp: data.timestamp
+        originalQuery: query,
+        optimizedQuery: finalQuery,
+        resultsCount: searchData.results?.length || 0,
+        timestamp: searchData.timestamp
       });
       
-      return data;
+      return {
+        ...searchData,
+        analysis: analysis.rationale // Include the rationale in the results
+      };
+
     } catch (error) {
       console.error('[Chat] Web search error:', error);
       throw error;
