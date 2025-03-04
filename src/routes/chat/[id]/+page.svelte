@@ -174,7 +174,27 @@
             `${r.description}\n`
           ).join('\n');
 
-          content = `You are a helpful assistant with access to recent web search results. 
+          // 调试用户语言信息
+          console.log('[Chat] Session data:', data.session);
+          console.log('[Chat] User data:', data.session.user);
+          
+          const userLang = data.session.user?.language || 'en';
+          console.log('[Chat] Detected user language:', userLang);
+
+          const promptTemplate = {
+            zh: `你是一个有帮助的助手，可以访问最新的网络搜索结果。
+请根据以下搜索结果，提供一个全面但简洁的中文回答。
+重点关注最相关和最新的信息。在适当的时候包含具体细节。
+使用markdown格式以提高可读性。
+
+要求：
+1. 综合这些搜索结果的信息
+2. 提供准确和最新的信息
+3. 使用markdown格式以提高可读性
+4. 如果搜索结果看起来过时或不相关，请说明
+5. 引用具体信息时包含相关来源编号 [1], [2] 等`,
+
+            en: `You are a helpful assistant with access to recent web search results. 
 Based on the following search results, provide a comprehensive but concise response.
 Focus on the most relevant and recent information. Include specific details when appropriate.
 Format your response using markdown for better readability.
@@ -184,7 +204,10 @@ Instructions:
 2. Provide accurate and up-to-date information
 3. Use markdown formatting for better readability
 4. If search results seem outdated or irrelevant, mention this
-5. Include relevant source numbers [1], [2], etc. when citing specific information
+5. Include relevant source numbers [1], [2], etc. when citing specific information`
+          };
+
+          content = `${promptTemplate[userLang] || promptTemplate.en}
 
 <results>
 ${formattedResults}
