@@ -8,7 +8,7 @@
   import { toast } from "$lib/components/ui/toast";
   import { onDestroy } from "svelte";
   import { sessionsStore } from '$lib/stores/sessions';
-  import { ArrowUp, Trash2 } from "lucide-svelte";
+  import { ArrowUp, Trash2, Search } from "lucide-svelte";
   import ModelSelector from "$lib/components/ModelSelector.svelte";
   import { selectedModel } from "$lib/stores/selectedModel";
   import { browser } from "$app/environment";
@@ -58,14 +58,52 @@
     clearTimeout(typingTimeout);
   });
 
-  // 添加工具栏状态控制
+  // 修改工具栏状态控制
   let showTools = false;
-  
-  // 修改工具选项
-  const tools = [
-    { id: 'thinking', label: '', icon: '🤔' },
-    { id: 'websearch', label: '', icon: '🌐' },
+  let webSearchMode = false;
+
+  // 修改工具选项, 直接使用let声明以确保状态变化会触发响应
+  let tools = [
+    {
+      id: 'websearch',
+      label: 'Web Search',
+      icon: Search,
+      toggle: () => {
+        webSearchMode = !webSearchMode;
+        console.log('Toggled web search mode:', webSearchMode); // Debug log
+        return webSearchMode;
+      }
+    }
   ];
+
+  $: console.log('Current webSearchMode:', webSearchMode); // 响应式调试日志
+
+  async function performWebSearch(query: string) {
+    console.log('[Chat] Performing web search:', { query });
+    try {
+      const encodedQuery = encodeURIComponent(query.trim());
+      const response = await fetch(`/api/search?q=${encodedQuery}`);
+      
+      console.log('[Chat] Search response status:', response.status);
+      
+      if (!response.ok) {
+        console.error('[Chat] Search request failed:', response.status, response.statusText);
+        throw new Error('Search failed');
+      }
+      
+      const data = await response.json();
+      console.log('[Chat] Search results received:', {
+        query,
+        resultsCount: data.results?.length || 0,
+        timestamp: data.timestamp
+      });
+      
+      return data;
+    } catch (error) {
+      console.error('[Chat] Web search error:', error);
+      throw error;
+    }
+  }
 
   // 添加工具选择处理函数
   function handleToolSelect(toolId: string) {
@@ -107,32 +145,17 @@
     localStorage.removeItem(`draft_${$page.params.id}`);
 
     try {
-      // 生成唯一ID用于消息跟踪
       const tempUserMsgId = Date.now().toString();
       const tempAssistantMsgId = (Date.now() + 1).toString();
       
-      // 添加用户消息
       messages = [...messages, { 
         id: tempUserMsgId,
         role: "user", 
         content: userMessage,
         createdAt: new Date()
       }];
-      
-      const response = await fetch(`/api/chat/${$page.params.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          content: userMessage,
-          modelId: $selectedModel?.id 
-        })
-      });
 
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
-      }
-
-      // 添加空的助手消息
+      // 添加空的助手消息先
       messages = [...messages, { 
         id: tempAssistantMsgId,
         role: "assistant", 
@@ -140,41 +163,74 @@
         createdAt: new Date()
       }];
 
-      // 处理流式响应
+      let systemPrompt = "";
+      
+      if (webSearchMode) {
+        try {
+          const searchResults = await performWebSearch(userMessage);
+          
+          // 格式化搜索结果为更结构化的内容
+          const formattedResults = searchResults.results.map((r: any, index: number) => 
+            `[${index + 1}] ${r.title}\n` +
+            `URL: ${r.url}\n` +
+            `${r.description}\n`
+          ).join('\n');
+
+          systemPrompt = `You are a helpful assistant with access to recent web search results. 
+Based on the following search results, provide a comprehensive but concise response.
+Focus on the most relevant and recent information. Include specific details when appropriate.
+Format your response using markdown for better readability.
+
+Search query: "${userMessage}"
+
+Search Results:
+${formattedResults}
+
+Instructions:
+1. Synthesize the information from these search results
+2. Provide accurate and up-to-date information
+3. Use markdown formatting for better readability
+4. If search results seem outdated or irrelevant, mention this
+5. Include relevant source numbers [1], [2], etc. when citing specific information`;
+
+        } catch (error) {
+          console.error('[Chat] Web search flow error:', error);
+          messages = messages.map(msg => 
+            msg.id === tempAssistantMsgId 
+              ? { ...msg, content: "I apologize, but I was unable to perform the web search. Please try again later." }
+              : msg
+          );
+          sending = false;
+          return;
+        }
+      }
+
+      const response = await fetch(`/api/chat/${$page.params.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          content: userMessage,
+          modelId: $selectedModel?.id,
+          ...(webSearchMode && { systemPrompt })
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
       const reader = response.body?.getReader();
       if (!reader) throw new Error('No response stream');
 
       let assistantResponse = "";
+      
       while (true) {
         const { done, value } = await reader.read();
-        if (done) {
-          // 轮询检查session更新
-          let retries = 0;
-          const maxRetries = 5;
-          
-          while (retries < maxRetries) {
-            const sessionResponse = await fetch(`/api/chat/${$page.params.id}/session`);
-            if (sessionResponse.ok) {
-              const sessionData = await sessionResponse.json();
-              if (sessionData.title !== data.session.title) {
-                data.session = sessionData;
-                // 触发页面更新
-                data = { ...data };
-                // 通知sidebar更新
-                $sessionsStore.invalidate();
-                break;
-              }
-            }
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            retries++;
-          }
-          break;
-        }
+        if (done) break;
         
         const chunk = new TextDecoder().decode(value);
         assistantResponse += chunk;
         
-        // 更新助手消息内容
         messages = messages.map(msg => {
           if (msg.id === tempAssistantMsgId) {
             return { ...msg, content: assistantResponse };
@@ -183,17 +239,41 @@
         });
       }
 
+      // 更新会话标题
+      await checkAndUpdateSessionTitle();
+      
+      webSearchMode = false; // Reset search mode after use
+
     } catch (e) {
-      console.error("Chat error:", e);
+      console.error("[Chat] Submit error:", e);
       toast({
         title: "Error",
         description: "Failed to send message",
         type: "error"
       });
-      // 发生错误时删除助手消息
       messages = messages.slice(0, -1);
     } finally {
       sending = false;
+    }
+  }
+
+  async function checkAndUpdateSessionTitle() {
+    let retries = 0;
+    const maxRetries = 5;
+    
+    while (retries < maxRetries) {
+      const sessionResponse = await fetch(`/api/chat/${$page.params.id}/session`);
+      if (sessionResponse.ok) {
+        const sessionData = await sessionResponse.json();
+        if (sessionData.title !== data.session.title) {
+          data.session = sessionData;
+          data = { ...data };
+          $sessionsStore.invalidate();
+          break;
+        }
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      retries++;
     }
   }
 
@@ -319,10 +399,15 @@
         <div class="mb-2 flex items-center gap-2 text-sm text-gray-600 overflow-x-auto pb-1">
           {#each tools as tool}
             <button
-              class="px-2 md:px-3 py-1 md:py-1.5 rounded-full hover:bg-gray-100 flex items-center gap-1 md:gap-1.5 whitespace-nowrap"
-              on:click={() => handleToolSelect(tool.id)}
+              class="px-2 md:px-3 py-1 md:py-1.5 rounded-full 
+                {tool.id === 'websearch' && webSearchMode ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'} 
+                flex items-center gap-1 md:gap-1.5 whitespace-nowrap"
+              on:click={() => {
+                console.log('Button clicked'); // Debug log
+                tool.toggle();
+              }}
             >
-              <span>{tool.icon}</span>
+              <svelte:component this={tool.icon} class="h-4 w-4" />
               <span class="text-xs md:text-sm">{tool.label}</span>
             </button>
           {/each}
