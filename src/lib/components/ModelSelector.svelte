@@ -58,7 +58,7 @@
       }
       
       models = await response.json();
-      console.log('Loaded all models:', models);
+      //console.log('Loaded all models:', models);
       
       if (!$selectedModel && models.length > 0) {
         selectedModel.set(models[0]);

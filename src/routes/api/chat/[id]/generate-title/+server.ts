@@ -1,13 +1,12 @@
 import { error } from "@sveltejs/kit";
 import { PrismaClient } from "@prisma/client";
-import { OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL } from '$env/static/private';
 import type { RequestHandler } from "./$types";
 
 const prisma = new PrismaClient();
 
 export const POST: RequestHandler = async ({ params }) => {
   try {
-    // Get chat messages and user's language preference
+    // Get chat messages, user's language preference and selected model config
     const session = await prisma.session.findUnique({
       where: { id: params.id },
       include: {
@@ -23,7 +22,17 @@ export const POST: RequestHandler = async ({ params }) => {
       return new Response(null, { status: 204 });
     }
 
-    // Generate title using OpenAI with language-specific prompt
+    // Get current active model config
+    const modelConfig = await prisma.modelConfig.findFirst({
+      where: { enabled: true },
+      include: { provider: true }
+    });
+
+    if (!modelConfig) {
+      throw new Error('No active model configuration found');
+    }
+
+    // Generate title using the selected model
     const promptByLang = {
       en: 'Generate a concise, 3-5 word title with an emoji summarizing this chat:',
       zh: '为这个对话生成一个简洁的3-5个字的中文标题，包含emoji表情：'
@@ -34,16 +43,16 @@ ${session.messages.map(m => `${m.role}: ${m.content}`).join('\n')}
 
 Response format: { "title": "emoji title here" }`;
 
-    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+    const response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${modelConfig.apiKey}`,
       },
       body: JSON.stringify({
-        model: OPENAI_MODEL,
+        model: modelConfig.model,
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
+        temperature: modelConfig.temperature,
       }),
     });
 

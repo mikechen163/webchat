@@ -175,15 +175,15 @@
           ).join('\n');
 
           // 调试用户语言信息
-          console.log('[Chat] Session data:', data.session);
-          console.log('[Chat] User data:', data.session.user);
+          //console.log('[Chat] Session data:', data.session);
+          //console.log('[Chat] User data:', data.session.user);
           
           const userLang = data.session.user?.language || 'en';
           console.log('[Chat] Detected user language:', userLang);
 
           const promptTemplate = {
             zh: `你是一个有帮助的助手，可以访问最新的网络搜索结果。
-请根据以下搜索结果，提供一个全面但简洁的中文回答。
+请根据以下搜索结果，提供一个全面但简洁的回答,输出语言为中文。
 重点关注最相关和最新的信息。在适当的时候包含具体细节。
 使用markdown格式以提高可读性。
 
