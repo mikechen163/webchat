@@ -155,7 +155,6 @@
         createdAt: new Date()
       }];
 
-      // 添加空的助手消息先
       messages = [...messages, { 
         id: tempAssistantMsgId,
         role: "assistant", 
@@ -163,35 +162,33 @@
         createdAt: new Date()
       }];
 
-      let systemPrompt = "";
+      let content = userMessage;
       
       if (webSearchMode) {
         try {
           const searchResults = await performWebSearch(userMessage);
           
-          // 格式化搜索结果为更结构化的内容
           const formattedResults = searchResults.results.map((r: any, index: number) => 
             `[${index + 1}] ${r.title}\n` +
             `URL: ${r.url}\n` +
             `${r.description}\n`
           ).join('\n');
 
-          systemPrompt = `You are a helpful assistant with access to recent web search results. 
+          content = `You are a helpful assistant with access to recent web search results. 
 Based on the following search results, provide a comprehensive but concise response.
 Focus on the most relevant and recent information. Include specific details when appropriate.
 Format your response using markdown for better readability.
-
-Search query: "${userMessage}"
-
-Search Results:
-${formattedResults}
 
 Instructions:
 1. Synthesize the information from these search results
 2. Provide accurate and up-to-date information
 3. Use markdown formatting for better readability
 4. If search results seem outdated or irrelevant, mention this
-5. Include relevant source numbers [1], [2], etc. when citing specific information`;
+5. Include relevant source numbers [1], [2], etc. when citing specific information
+
+<results>
+${formattedResults}
+</results>`;
 
         } catch (error) {
           console.error('[Chat] Web search flow error:', error);
@@ -209,9 +206,8 @@ Instructions:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          content: userMessage,
+          content,
           modelId: $selectedModel?.id,
-          ...(webSearchMode && { systemPrompt })
         })
       });
 
@@ -239,10 +235,8 @@ Instructions:
         });
       }
 
-      // 更新会话标题
       await checkAndUpdateSessionTitle();
-      
-      webSearchMode = false; // Reset search mode after use
+      webSearchMode = false;
 
     } catch (e) {
       console.error("[Chat] Submit error:", e);
@@ -260,7 +254,6 @@ Instructions:
   async function checkAndUpdateSessionTitle() {
     let retries = 0;
     const maxRetries = 5;
-    
     while (retries < maxRetries) {
       const sessionResponse = await fetch(`/api/chat/${$page.params.id}/session`);
       if (sessionResponse.ok) {
@@ -292,11 +285,9 @@ Instructions:
 
   async function clearHistory() {
     if (!confirm("Are you sure you want to clear the chat history?")) return;
-    
     const response = await fetch(`/api/chat/${$page.params.id}/messages`, {
       method: "DELETE"
     });
-    
     if (response.ok) {
       messages = [];
     }
@@ -351,7 +342,6 @@ Instructions:
             {data.session.title}
           </button>
         {/if}
-        
         <div class="absolute right-2 md:right-4">
           <Button 
             variant="ghost" 
@@ -365,10 +355,9 @@ Instructions:
         </div>
       </div>
     </div>
-
     <!-- Messages -->
     <div 
-       class="flex-1 overflow-y-auto overscroll-contain"
+      class="flex-1 overflow-y-auto overscroll-contain"
       bind:this={messageContainer}
       on:scroll={handleScroll}
     >
@@ -382,7 +371,6 @@ Instructions:
         {/each}
       </div>
     </div>
-
     <!-- Typing Indicator -->
     {#if sending}
       <div class="shrink-0">
@@ -391,14 +379,13 @@ Instructions:
         </div>
       </div>
     {/if}
-
     <!-- Input part - Fixed position on mobile -->
     <div class="border-t flex-shrink-0 bg-white sticky bottom-0 left-0 right-0 z-10">
       <div class="w-full md:max-w-3xl lg:max-w-4xl mx-auto px-3 md:px-4 py-3 md:py-4">
         <!-- Tool bar -->
         <div class="mb-2 flex items-center gap-2 text-sm text-gray-600 overflow-x-auto pb-1">
           {#each tools as tool}
-            <button
+            <button 
               class="px-2 md:px-3 py-1 md:py-1.5 rounded-full 
                 {tool.id === 'websearch' && webSearchMode ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'} 
                 flex items-center gap-1 md:gap-1.5 whitespace-nowrap"
@@ -414,7 +401,6 @@ Instructions:
           <div class="h-5 border-l border-gray-200 mx-1"></div>
           <ModelSelector showFullName={true} />
         </div>
-        
         <!-- Message input form -->
         <form on:submit|preventDefault={handleSubmit} class="flex items-center gap-2 max-w-full">
           <Input
@@ -425,7 +411,7 @@ Instructions:
             class="flex-1 h-[40px] md:h-[48px] rounded-[24px] text-sm md:text-base px-4 md:px-6 bg-white border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           />
           <Button 
-            type="submit" 
+            type="submit"
             disabled={sending}
             class="h-10 w-10 md:h-12 md:w-12 rounded-full p-0 flex items-center justify-center bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
             variant="default"
@@ -437,10 +423,9 @@ Instructions:
             {/if}
           </Button>
         </form>
+        <!-- Bottom padding to ensure content isn't hidden behind keyboard on mobile -->
+        <div class="h-2 md:hidden flex-shrink-0"></div>
       </div>
     </div>
-    
-    <!-- Bottom padding to ensure content isn't hidden behind keyboard on mobile -->
-    <div class="h-2 md:hidden flex-shrink-0"></div>
   </div>
 </div>
