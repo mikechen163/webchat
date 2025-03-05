@@ -10,4 +10,18 @@ declare global {
   }
 }
 
+declare module '@mozilla/readability' {
+  export class Readability {
+    constructor(document: Document, options?: object);
+    parse(): {
+      title: string;
+      content: string;
+      textContent: string;
+      excerpt: string;
+      length: number;
+      siteName: string;
+    } | null;
+  }
+}
+
 export {};

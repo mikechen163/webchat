@@ -111,8 +111,8 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`;
 
 export async function POST({ request, params, fetch }) {  // Add fetch to destructured params
   try {
-    const { content, modelId } = await request.json();
-    //console.log('Received request:', { content, modelId });
+    const { content, modelId, temperature = 0.7, max_tokens } = await request.json();
+    //console.log('Received request:', { content, modelId, temperature, max_tokens });
     
     // 获取指定的模型配置
     let modelConfig = await prisma.modelConfig.findFirst({
@@ -122,7 +122,6 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
       }
     });
 
-    
     if (!modelConfig) {
       // If no specific model found, try to get default model
       const defaultModel = await prisma.modelConfig.findFirst({
@@ -137,8 +136,6 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
       
       modelConfig = defaultModel;
     }
-
-    
 
     // 获取历史消息并保存用户消息
     const history = await prisma.message.findMany({
@@ -159,8 +156,14 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
     const messages = [...history, { role: 'user', content }];
     let fullAssistantMessage = '';
     
-    console.log('baseurl=', modelConfig.baseUrl, 'model=', modelConfig.model);
-     const response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
+    console.log('Making API request:', {
+      baseUrl: modelConfig.baseUrl,
+      model: modelConfig.model,
+      temperature,
+      ...(max_tokens && { max_tokens })
+    });
+
+    const response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -170,10 +173,13 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
         model: modelConfig.model,
         messages,
         stream: true,
+        temperature,
+        ...(max_tokens && { max_tokens }) // Only include max_tokens if it's provided
       }),
     });
 
     if (!response.ok) {
+      console.error('API response error:', response.status, response.statusText);
       throw new Error(`OpenAI API error: ${response.status}`);
     }
 
@@ -188,7 +194,7 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
           while (true) {
             const { done, value } = await reader.read();
             if (done) {
-              // 在流结束时保存消息和生成标题
+              // Save the complete message and generate title
               await prisma.message.create({
                 data: {
                   sessionId: params.id,
@@ -197,15 +203,21 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
                 }
               });
 
-              // 检查是否需要生成标题
+              // Check if title generation is needed
               const messageCount = await prisma.message.count({
                 where: { sessionId: params.id }
               });
 
               if (messageCount === 2) {
-                // Use the provided fetch instead of global fetch
                 fetch(`/api/chat/${params.id}/generate-title`, {
-                  method: 'POST'
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    temperature: 0.3, // Use lower temperature for title generation
+                    max_tokens: 50    // Limit tokens for title
+                  })
                 }).catch(console.error);
               }
               

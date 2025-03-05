@@ -78,52 +78,126 @@
 
   $: console.log('Current webSearchMode:', webSearchMode); // 响应式调试日志
 
-  async function performWebSearch(query: string) {
-    console.log('[Chat] Initial search query:', query);
-    let searchAttempts = 0;
-    const MAX_SEARCH_ATTEMPTS = 2;
-    const MAX_URL_FETCHES = 3;
-    
-    async function analyzeSearchResults(results: any[], originalQuery: string) {
-      const analysisPrompt = `Analyze these search results for the query: "${originalQuery}"
+  async function analyzeSearchResults(results: any[], originalQuery: string) {
+    const analysisPrompt = `Analyze these search results for the query: "${originalQuery}"
 Results: ${JSON.stringify(results, null, 2)}
 
-Evaluate:
-1. Content completeness (0-100%)
-2. Time relevance (0-100%)
-3. Query match (0-100%)
-4. Most relevant URLs to fetch (up to 3)
-
-Return JSON only:
+Evaluate and return a JSON object with exactly these fields:
 {
-  "completeness": number,
-  "timeRelevance": number,
-  "queryMatch": number,
+  "completeness": number (0-100),
+  "timeRelevance": number (0-100),
+  "queryMatch": number (0-100),
   "needsMoreContent": boolean,
   "relevantUrls": string[],
-  "rationale": string
-}`;
+  "rationale": string (keep it under 100 words)
+}
 
-      const response = await fetch(`/api/chat/${$page.params.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          content: analysisPrompt,
-          modelId: $selectedModel?.id,
-          system: "You are a search results analyzer that only returns valid JSON."
-        })
-      });
+Important: Keep the response concise and ensure it's valid JSON.`;
 
-      let analysisText = "";
+    const response = await fetch(`/api/chat/${$page.params.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        content: analysisPrompt,
+        modelId: $selectedModel?.id,
+        temperature: 0.3,
+        max_tokens: 500,
+        system: "You are a search results analyzer. Return only valid JSON, no explanation or formatting."
+      })
+    });
+
+    let analysisText = await streamToText(response);
+    
+    // Improved JSON cleaning function
+    const cleanJson = (text: string): string => {
+      try {
+        // First attempt: Try to parse as-is
+        JSON.parse(text);
+        return text;
+      } catch {
+        try {
+          // Second attempt: Clean up the text and try to extract JSON
+          text = text.replace(/```json|```/g, '').trim();
+          
+          // Find the first '{' and last '}'
+          const start = text.indexOf('{');
+          const end = text.lastIndexOf('}') + 1;
+          
+          if (start === -1 || end === 0) {
+            throw new Error('No JSON object found');
+          }
+          
+          const extracted = text.slice(start, end);
+          
+          // Validate the extracted JSON
+          JSON.parse(extracted);
+          return extracted;
+        } catch (e) {
+          // Third attempt: Try to fix truncated JSON
+          try {
+            const fixedJson = fixTruncatedJson(text);
+            return fixedJson;
+          } catch {
+            console.error('Failed to fix JSON:', text);
+            throw new Error('Invalid JSON structure in response');
+          }
+        }
+      }
+    };
+
+    // New helper function to fix truncated JSON
+    function fixTruncatedJson(text: string): string {
+      // Extract what looks like JSON
+      const jsonMatch = text.match(/\{[\s\S]*$/);
+      if (!jsonMatch) throw new Error('No JSON object found');
+      
+      let jsonText = jsonMatch[0];
+      
+      // Count open and close braces
+      const openBraces = (jsonText.match(/\{/g) || []).length;
+      const closeBraces = (jsonText.match(/\}/g) || []).length;
+      
+      // Add missing closing braces if needed
+      if (openBraces > closeBraces) {
+        jsonText += '}'.repeat(openBraces - closeBraces);
+      }
+      
+      // Validate the fixed JSON
+      JSON.parse(jsonText);
+      return jsonText;
+    }
+
+    // Helper function to read stream
+    async function streamToText(response: Response): Promise<string> {
+      let text = '';
       const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        analysisText += new TextDecoder().decode(value);
+        text += new TextDecoder().decode(value);
       }
-
-      return JSON.parse(analysisText);
+      return text;
     }
+
+    try {
+      const cleanedText = cleanJson(analysisText);
+      console.log('[Chat] Cleaned JSON text:', cleanedText);
+      return JSON.parse(cleanedText);
+    } catch (error) {
+      console.error('[Chat] JSON parse error:', error, 'Raw text:', analysisText);
+      // Return a default analysis if parsing fails
+      return {
+        completeness: 50,
+        timeRelevance: 50,
+        queryMatch: 50,
+        needsMoreContent: true,
+        relevantUrls: results.slice(0, 2).map(r => r.url),
+        rationale: "Failed to parse analysis, using default values"
+      };
+    }
+  }
 
     async function fetchUrlContent(url: string) {
       try {
@@ -131,6 +205,8 @@ Return JSON only:
         const response = await fetch(`/api/fetch-url?url=${encodeURIComponent(url)}`);
         if (!response.ok) throw new Error('URL fetch failed');
         const content = await response.json();
+        console.log('[Chat] Fetched content:', content);
+
         return content;
       } catch (error) {
         console.error('[Chat] URL fetch error:', error);
@@ -138,39 +214,53 @@ Return JSON only:
       }
     }
 
-    async function analyzeUrlContent(content: string, query: string) {
-      const analysisPrompt = `Analyze this content for relevance to query: "${query}"
-Content: ${content.substring(0, 2000)}...
+//     async function analyzeUrlContent(content: string, query: string) {
+//       const analysisPrompt = `Analyze this content for relevance to query: "${query}"
+// Content: ${content.substring(0, 2000)}...
 
-Return JSON only:
-{
-  "relevance": number,
-  "satisfiesQuery": boolean,
-  "keyInsights": string[],
-  "rationale": string
-}`;
+// Return JSON only:
+// {
+//   "relevance": number,
+//   "satisfiesQuery": boolean,
+//   "keyInsights": string[],
+//   "rationale": string
+// }`;
 
-      const response = await fetch(`/api/chat/${$page.params.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          content: analysisPrompt,
-          modelId: $selectedModel?.id,
-          system: "You are a content analyzer that only returns valid JSON."
-        })
-      });
+//       const response = await fetch(`/api/chat/${$page.params.id}`, {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify({ 
+//           content: analysisPrompt,
+//           modelId: $selectedModel?.id,
+//           // Use low temperature for content analysis
+//           temperature: 0.2,
+//           max_tokens: 800,
+//           system: "You are a content analyzer that only returns valid JSON."
+//         })
+//       });
 
-      let analysisText = "";
-      const reader = response.body?.getReader();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        analysisText += new TextDecoder().decode(value);
-      }
+//       let analysisText = "";
+//       const reader = response.body?.getReader();
+//       while (true) {
+//         const { done, value } = await reader.read();
+//         if (done) break;
+//         analysisText += new TextDecoder().decode(value);
+//       }
 
-      return JSON.parse(analysisText);
-    }
+//       // Use the same JSON cleanup function
+//       const cleanedText = cleanJson(analysisText);
+//       console.log('[Chat] Cleaned URL content analysis:', cleanedText);
+//       return JSON.parse(cleanedText);
+//     }
 
+
+  async function performWebSearch(query: string) {
+    console.log('[Chat] Initial search query:', query);
+    let searchAttempts = 0;
+    const MAX_SEARCH_ATTEMPTS = 1;
+    const MAX_URL_FETCHES = 2;
+    
+    
     while (searchAttempts < MAX_SEARCH_ATTEMPTS) {
       try {
         // 1. Initial search
@@ -181,85 +271,66 @@ Return JSON only:
         const analysis = await analyzeSearchResults(searchResults.results, query);
         console.log('[Chat] Search results analysis:', analysis);
 
-        // If results are satisfactory, return them
-        if (analysis.completeness >= 70 && analysis.timeRelevance >= 70 && analysis.queryMatch >= 70) {
-          console.log('[Chat] Search results are satisfactory');
-          return searchResults;
-        }
+       
+        const enhancedResults = [...searchResults.results];
+const contents = [];
 
-        // 3. Fetch and analyze additional content if needed
-        if (analysis.needsMoreContent) {
-          const enhancedResults = [...searchResults.results];
-          for (const url of analysis.relevantUrls.slice(0, MAX_URL_FETCHES)) {
-            const content = await fetchUrlContent(url);
-            if (!content) continue;
+for (const url of analysis.relevantUrls.slice(0, MAX_URL_FETCHES)) {
+  const content = await fetchUrlContent(url);
+  if (content) {
+    contents.push(content);
+  }
+}
 
-            const contentAnalysis = await analyzeUrlContent(content.text, query);
-            console.log('[Chat] URL content analysis:', { url, analysis: contentAnalysis });
+return {
+  ...searchResults,
+  results: [...enhancedResults, ...contents]
+};
 
-            if (contentAnalysis.satisfiesQuery) {
-              const resultIndex = enhancedResults.findIndex(r => r.url === url);
-              if (resultIndex !== -1) {
-                enhancedResults[resultIndex] = {
-                  ...enhancedResults[resultIndex],
-                  extractedContent: content.text,
-                  contentAnalysis: contentAnalysis.keyInsights
-                };
-              }
-            }
-          }
-
-          // Return enhanced results if they're now satisfactory
-          const finalAnalysis = await analyzeSearchResults(enhancedResults, query);
-          if (finalAnalysis.completeness >= 70 && finalAnalysis.timeRelevance >= 70) {
-            return {
-              ...searchResults,
-              results: enhancedResults,
-              analysis: finalAnalysis
-            };
-          }
-        }
 
         // 4. If still not satisfactory, try to generate a better query
-        const refinedQueryPrompt = `Based on the search results and analysis:
-Original query: "${query}"
-Results analysis: ${JSON.stringify(analysis, null, 2)}
+//         const refinedQueryPrompt = `Based on the search results and analysis:
+// Original query: "${query}"
+// Results analysis: ${JSON.stringify(analysis, null, 2)}
 
-Generate a refined search query that will:
-1. Address missing information
-2. Focus on more recent content
-3. Better match user intent
+// Generate a refined search query that will:
+// 1. Address missing information
+// 2. Focus on more recent content
+// 3. Better match user intent
 
-Return JSON only:
-{
-  "refinedQuery": string,
-  "rationale": string
-}`;
+// Return JSON only:
+// {
+//   "refinedQuery": string,
+//   "rationale": string
+// }`;
 
-        const refinedQueryResponse = await fetch(`/api/chat/${$page.params.id}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            content: refinedQueryPrompt,
-            modelId: $selectedModel?.id,
-            system: "You are a query refinement assistant that only returns valid JSON."
-          })
-        });
+//         const refinedQueryResponse = await fetch(`/api/chat/${$page.params.id}`, {
+//           method: "POST",
+//           headers: { "Content-Type": "application/json" },
+//           body: JSON.stringify({ 
+//             content: refinedQueryPrompt,
+//             modelId: $selectedModel?.id,
+//             // Use higher temperature for query refinement to get more creative suggestions
+//             temperature: 0.8,
+//             max_tokens: 300,
+//             system: "You are a query refinement assistant that only returns valid JSON."
+//           })
+//         });
 
-        let refinedQueryText = "";
-        const reader = refinedQueryResponse.body?.getReader();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          refinedQueryText += new TextDecoder().decode(value);
-        }
+//         let refinedQueryText = "";
+//         const reader = refinedQueryResponse.body?.getReader();
+//         while (true) {
+//           const { done, value } = await reader.read();
+//           if (done) break;
+//           refinedQueryText += new TextDecoder().decode(value);
+//         }
 
-        const refinedQuery = JSON.parse(refinedQueryText);
-        console.log('[Chat] Generated refined query:', refinedQuery);
+//         const refinedQuery = JSON.parse(refinedQueryText);
+//         console.log('[Chat] Generated refined query:', refinedQuery);
 
-        // Update query for next attempt
-        query = refinedQuery.refinedQuery;
-        searchAttempts++;
+//         // Update query for next attempt
+//         query = refinedQuery.refinedQuery;
+//         searchAttempts++;
 
       } catch (error) {
         console.error('[Chat] Search optimization error:', error);
@@ -413,6 +484,9 @@ ${formattedResults}
         body: JSON.stringify({ 
           content,
           modelId: $selectedModel?.id,
+          // Use moderate temperature for final response to balance creativity and accuracy
+          temperature: 0.7,
+          max_tokens: 2000,
         }),
         signal: abortController.signal
       });
