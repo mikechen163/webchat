@@ -150,6 +150,21 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
       select: { role: true, content: true }
     });
 
+    // 如果是分析搜索结果的系统指令，提取用户查询并保存
+    if (isSystemPrompt && content.includes('Analyze these search results for the query')) {
+      const queryMatch = content.match(/query: \"(.*?)\"/);
+      if (queryMatch && queryMatch[1]) {
+        const userQuery = queryMatch[1];
+        await prisma.message.create({
+          data: {
+            sessionId: params.id,
+            role: "user",
+            content: userQuery
+          }
+        });
+      }
+    }  
+
     // 只有非系统指令才保存到数据库
     if (!isSystemPrompt) {
       await prisma.message.create({

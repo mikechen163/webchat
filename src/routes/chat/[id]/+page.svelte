@@ -437,6 +437,9 @@ Instructions:
           };
 
           content = `${promptTemplate[userLang] || promptTemplate.en}
+<user_input>
+${userMessage}
+</user_input>
 
 <results>
 ${formattedResults}
