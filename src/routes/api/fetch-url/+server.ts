@@ -49,7 +49,7 @@ export const GET: RequestHandler = async ({ url, fetch }) => {
 
       const data = await response.json();
 
-      console.log('[Fetch URL] Jina API response:', data.count);
+      console.log('[Fetch URL] Jina API response:', data.text);
       
       // Return a simplified response with markdown content
       return json({

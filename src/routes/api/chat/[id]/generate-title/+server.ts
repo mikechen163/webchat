@@ -18,6 +18,8 @@ export const POST: RequestHandler = async ({ params }) => {
       }
     });
 
+    //console.log('Generate title , Session:', session);
+
     if (!session || session.messages.length === 0) {
       return new Response(null, { status: 204 });
     }

@@ -258,7 +258,7 @@ Important: Keep the response concise and ensure it's valid JSON.`;
     console.log('[Chat] Initial search query:', query);
     let searchAttempts = 0;
     const MAX_SEARCH_ATTEMPTS = 1;
-    const MAX_URL_FETCHES = 2;
+    const MAX_URL_FETCHES = 1;
     
     
     while (searchAttempts < MAX_SEARCH_ATTEMPTS) {
@@ -278,9 +278,12 @@ const contents = [];
 for (const url of analysis.relevantUrls.slice(0, MAX_URL_FETCHES)) {
   const content = await fetchUrlContent(url);
   if (content) {
-    contents.push(content);
+    // 将 JSON 格式的 content 转换为字符串
+    const contentText = JSON.stringify(content);
+    contents.push(contentText);
   }
 }
+console.log('[Chat] Fetched contents:', contents);
 
 return {
   ...searchResults,
@@ -486,7 +489,7 @@ ${formattedResults}
           modelId: $selectedModel?.id,
           // Use moderate temperature for final response to balance creativity and accuracy
           temperature: 0.7,
-          max_tokens: 2000,
+          //max_tokens: 128000,
         }),
         signal: abortController.signal
       });
