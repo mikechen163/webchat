@@ -117,6 +117,7 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
     // 检查是否是系统指令
     const isSystemPrompt = content.startsWith('Analyze these search results for the query') ||
                           content.startsWith('你是一个有帮助的助手，可以访问最新的网络搜索结果') ||
+                          content.startsWith('Analyze this query and extract search') ||
                           content.startsWith('You are a helpful assistant with access to the latest web search results');
 
     // 获取指定的模型配置
@@ -219,7 +220,7 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
             if (done) {
               // 只有非系统指令且不是JSON响应时才保存assistant消息
               //console.log('Saving assistant message:', fullAssistantMessage);
-              if ( !fullAssistantMessage.includes('"completeness":')) {
+              if ( !fullAssistantMessage.includes('"completeness":') &&  !fullAssistantMessage.includes('"isChinaRelated":')) {
                 await prisma.message.create({
                   data: {
                     sessionId: params.id,
