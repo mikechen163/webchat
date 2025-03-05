@@ -205,9 +205,9 @@ Important: Keep the response concise and ensure it's valid JSON.`;
         const response = await fetch(`/api/fetch-url?url=${encodeURIComponent(url)}`);
         if (!response.ok) throw new Error('URL fetch failed');
         const content = await response.json();
-        console.log('[Chat] Fetched content:', content);
+        //console.log('[Chat] Fetched content:', content.text.data);
 
-        return content;
+        return content.text.data;
       } catch (error) {
         console.error('[Chat] URL fetch error:', error);
         return null;
@@ -258,8 +258,7 @@ Important: Keep the response concise and ensure it's valid JSON.`;
     console.log('[Chat] Initial search query:', query);
     let searchAttempts = 0;
     const MAX_SEARCH_ATTEMPTS = 1;
-    const MAX_URL_FETCHES = 1;
-    
+    const MAX_URL_FETCHES = 2;
     
     while (searchAttempts < MAX_SEARCH_ATTEMPTS) {
       try {
@@ -271,69 +270,37 @@ Important: Keep the response concise and ensure it's valid JSON.`;
         const analysis = await analyzeSearchResults(searchResults.results, query);
         console.log('[Chat] Search results analysis:', analysis);
 
-       
-        const enhancedResults = [...searchResults.results];
-const contents = [];
+        // 3. Fetch content from relevant URLs
+        const enhancedResults = [];
+        
+        // First add original search results
+        for (const result of searchResults.results) {
+          enhancedResults.push({
+            type: 'searchResult',
+            title: result.title,
+            url: result.url,
+            description: result.description
+          });
+        }
 
-for (const url of analysis.relevantUrls.slice(0, MAX_URL_FETCHES)) {
-  const content = await fetchUrlContent(url);
-  if (content) {
-    // 将 JSON 格式的 content 转换为字符串
-    const contentText = JSON.stringify(content);
-    contents.push(contentText);
-  }
-}
-console.log('[Chat] Fetched contents:', contents);
+        // Then fetch and add content for relevant URLs
+        for (const url of analysis.relevantUrls.slice(0, MAX_URL_FETCHES)) {
+          const content = await fetchUrlContent(url);
+          if (content) {
+            enhancedResults.push({
+              type: 'urlContent',
+              url: url,
+              content: content
+            });
+          }
+        }
 
-return {
-  ...searchResults,
-  results: [...enhancedResults, ...contents]
-};
-
-
-        // 4. If still not satisfactory, try to generate a better query
-//         const refinedQueryPrompt = `Based on the search results and analysis:
-// Original query: "${query}"
-// Results analysis: ${JSON.stringify(analysis, null, 2)}
-
-// Generate a refined search query that will:
-// 1. Address missing information
-// 2. Focus on more recent content
-// 3. Better match user intent
-
-// Return JSON only:
-// {
-//   "refinedQuery": string,
-//   "rationale": string
-// }`;
-
-//         const refinedQueryResponse = await fetch(`/api/chat/${$page.params.id}`, {
-//           method: "POST",
-//           headers: { "Content-Type": "application/json" },
-//           body: JSON.stringify({ 
-//             content: refinedQueryPrompt,
-//             modelId: $selectedModel?.id,
-//             // Use higher temperature for query refinement to get more creative suggestions
-//             temperature: 0.8,
-//             max_tokens: 300,
-//             system: "You are a query refinement assistant that only returns valid JSON."
-//           })
-//         });
-
-//         let refinedQueryText = "";
-//         const reader = refinedQueryResponse.body?.getReader();
-//         while (true) {
-//           const { done, value } = await reader.read();
-//           if (done) break;
-//           refinedQueryText += new TextDecoder().decode(value);
-//         }
-
-//         const refinedQuery = JSON.parse(refinedQueryText);
-//         console.log('[Chat] Generated refined query:', refinedQuery);
-
-//         // Update query for next attempt
-//         query = refinedQuery.refinedQuery;
-//         searchAttempts++;
+        // Return combined results
+        return {
+          query,
+          results: enhancedResults,
+          analysis
+        };
 
       } catch (error) {
         console.error('[Chat] Search optimization error:', error);
@@ -341,8 +308,6 @@ return {
       }
     }
 
-    // If we've exhausted our attempts, return the best results we have
-    console.log('[Chat] Maximum search attempts reached');
     return await performInitialSearch(query);
   }
 
@@ -424,11 +389,19 @@ return {
         try {
           const searchResults = await performWebSearch(userMessage);
           
-          const formattedResults = searchResults.results.map((r: any, index: number) => 
-            `[${index + 1}] ${r.title}\n` +
-            `URL: ${r.url}\n` +
-            `${r.description}\n`
-          ).join('\n');
+          //console.log('[Chat] Search results:', searchResults);
+
+          const formattedResults = searchResults.results
+            .map((r: any, index: number) => {
+              if (r.type === 'searchResult') {
+                return `[${index + 1}] ${r.title}\nURL: ${r.url}\n${r.description}`;
+              } else if (r.type === 'urlContent') {
+                return `Full content from [${index + 1}] ${r.url}:\n\n${r.content.title}:\n\n${r.content.description}:\n\n${r.content.content}`;
+              }
+              return '';
+            })
+            .filter(Boolean)
+            .join('\n\n');
 
           // 调试用户语言信息
           //console.log('[Chat] Session data:', data.session);
