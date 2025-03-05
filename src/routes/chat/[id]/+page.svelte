@@ -27,6 +27,42 @@
   let lastTypingUpdate = 0;
 
   let viewportHeight = 0;
+
+   // New helper function to fix truncated JSON
+   function fixTruncatedJson(text: string): string {
+      // Extract what looks like JSON
+      const jsonMatch = text.match(/\{[\s\S]*$/);
+      if (!jsonMatch) throw new Error('No JSON object found');
+      
+      let jsonText = jsonMatch[0];
+      
+      // Count open and close braces
+      const openBraces = (jsonText.match(/\{/g) || []).length;
+      const closeBraces = (jsonText.match(/\}/g) || []).length;
+      
+      // Add missing closing braces if needed
+      if (openBraces > closeBraces) {
+        jsonText += '}'.repeat(openBraces - closeBraces);
+      }
+      
+      // Validate the fixed JSON
+      JSON.parse(jsonText);
+      return jsonText;
+    }
+
+    // Helper function to read stream
+    async function streamToText(response: Response): Promise<string> {
+      let text = '';
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        text += new TextDecoder().decode(value);
+      }
+      return text;
+    }
   
   function updateViewportHeight() {
     if (browser) {
@@ -145,41 +181,7 @@ Important: Keep the response concise and ensure it's valid JSON.`;
       }
     };
 
-    // New helper function to fix truncated JSON
-    function fixTruncatedJson(text: string): string {
-      // Extract what looks like JSON
-      const jsonMatch = text.match(/\{[\s\S]*$/);
-      if (!jsonMatch) throw new Error('No JSON object found');
-      
-      let jsonText = jsonMatch[0];
-      
-      // Count open and close braces
-      const openBraces = (jsonText.match(/\{/g) || []).length;
-      const closeBraces = (jsonText.match(/\}/g) || []).length;
-      
-      // Add missing closing braces if needed
-      if (openBraces > closeBraces) {
-        jsonText += '}'.repeat(openBraces - closeBraces);
-      }
-      
-      // Validate the fixed JSON
-      JSON.parse(jsonText);
-      return jsonText;
-    }
-
-    // Helper function to read stream
-    async function streamToText(response: Response): Promise<string> {
-      let text = '';
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response stream');
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        text += new TextDecoder().decode(value);
-      }
-      return text;
-    }
+    
 
     try {
       const cleanedText = cleanJson(analysisText);
@@ -313,14 +315,106 @@ Important: Keep the response concise and ensure it's valid JSON.`;
 
   // Helper function for the actual search API call
   async function performInitialSearch(query: string) {
-    const encodedQuery = encodeURIComponent(query.trim());
-    const response = await fetch(`/api/search?q=${encodedQuery}`);
-    
-    if (!response.ok) {
-      throw new Error('Search failed');
+    try {
+      // 1. 分析用户意图和获取关键词
+      const analysisPrompt = `Analyze this query and extract search keywords:
+  Query: "${query}"
+  
+  Return a JSON object with these fields:
+  {
+    "isChinaRelated": boolean,  // true if query is specifically about Chinese topics, culture, places, or people
+    "searchKeywords": string,   // optimized search terms in English (unless China-related)
+    "rationale": string        // brief explanation
+  }
+  
+  Examples:
+  - Query: "中国经济发展情况" -> {"isChinaRelated": true, "searchKeywords": "中国经济发展情况", "rationale": "Query about Chinese economy"}
+  - Query: "苹果公司最新财报" -> {"isChinaRelated": false, "searchKeywords": "Apple earnings report latest", "rationale": "About Apple Inc, better searched in English"}`;
+  
+      const response = await fetch(`/api/chat/${$page.params.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: analysisPrompt,
+          modelId: $selectedModel?.id,
+          temperature: 0.3,
+          max_tokens: 200,
+          system: "You are a query analyzer. Return only valid JSON."
+        })
+      });
+  
+      const analysisText = await streamToText(response);
+
+
+       const cleanJson = (text: string): string => {
+      try {
+        // First attempt: Try to parse as-is
+        JSON.parse(text);
+        return text;
+      } catch {
+        try {
+          // Second attempt: Clean up the text and try to extract JSON
+          text = text.replace(/```json|```/g, '').trim();
+          
+          // Find the first '{' and last '}'
+          const start = text.indexOf('{');
+          const end = text.lastIndexOf('}') + 1;
+          
+          if (start === -1 || end === 0) {
+            throw new Error('No JSON object found');
+          }
+          
+          const extracted = text.slice(start, end);
+          
+          // Validate the extracted JSON
+          JSON.parse(extracted);
+          return extracted;
+        } catch (e) {
+          // Third attempt: Try to fix truncated JSON
+          try {
+            const fixedJson = fixTruncatedJson(text);
+            return fixedJson;
+          } catch {
+            console.error('Failed to fix JSON:', text);
+            throw new Error('Invalid JSON structure in response');
+          }
+        }
+      }
+    };
+
+    const analysis = JSON.parse(cleanJson(analysisText));
+
+    console.log('[Chat] Query analysis:', analysis);
+
+    // 2. 使用优化后的关键词进行搜索
+    const searchQuery = analysis.searchKeywords;
+
+      console.log('[Chat] Encoded search query:', searchQuery);
+
+      const encodedQuery = encodeURIComponent(searchQuery.trim());
+      console.log('[Chat] Using search query:', searchQuery);
+  
+      const searchResponse = await fetch(`/api/search?q=${encodedQuery}`);
+      if (!searchResponse.ok) {
+        throw new Error('Search failed');
+      }
+  
+      const results = await searchResponse.json();
+      return {
+        ...results,
+        queryAnalysis: analysis  // 包含分析信息以供后续使用
+      };
+  
+    } catch (error) {
+      console.error('[Chat] Search error:', error);
+      // 如果分析失败，回退到直接搜索原始查询
+      const encodedQuery = encodeURIComponent(query.trim());
+      const response = await fetch(`/api/search?q=${encodedQuery}`);
+      if (!response.ok) {
+        throw new Error('Search failed');
+      }
+      return await response.json();
     }
-    
-    return await response.json();
   }
 
   // 添加工具选择处理函数
