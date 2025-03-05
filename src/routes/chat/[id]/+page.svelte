@@ -80,24 +80,29 @@
 
   async function performWebSearch(query: string) {
     console.log('[Chat] Initial search query:', query);
+    let searchAttempts = 0;
+    const MAX_SEARCH_ATTEMPTS = 2;
+    const MAX_URL_FETCHES = 3;
     
-    // First, analyze the query using the current model
-    try {
-      const currentDate = new Date().toISOString().split('T')[0];
-      const analysisPrompt = `You are a search query optimizer. Analyze the following user query and create an optimized search query.
-Consider the current date: ${currentDate}
-Original query: "${query}"
+    async function analyzeSearchResults(results: any[], originalQuery: string) {
+      const analysisPrompt = `Analyze these search results for the query: "${originalQuery}"
+Results: ${JSON.stringify(results, null, 2)}
 
-Instructions:
-1. Identify the core information need
-2. Extract key concepts and important terms
-3. Add temporal context if relevant
-4. Format the response as a JSON object with these fields:
-   - optimizedQuery: the improved search query string
-   - requiresTimeContext: boolean indicating if recent results are important
-   - rationale: brief explanation of your optimization
+Evaluate:
+1. Content completeness (0-100%)
+2. Time relevance (0-100%)
+3. Query match (0-100%)
+4. Most relevant URLs to fetch (up to 3)
 
-Respond with valid JSON only.`;
+Return JSON only:
+{
+  "completeness": number,
+  "timeRelevance": number,
+  "queryMatch": number,
+  "needsMoreContent": boolean,
+  "relevantUrls": string[],
+  "rationale": string
+}`;
 
       const response = await fetch(`/api/chat/${$page.params.id}`, {
         method: "POST",
@@ -105,67 +110,178 @@ Respond with valid JSON only.`;
         body: JSON.stringify({ 
           content: analysisPrompt,
           modelId: $selectedModel?.id,
-          system: "You are a search query optimization assistant that only returns valid JSON."
+          system: "You are a search results analyzer that only returns valid JSON."
         })
       });
 
-      if (!response.ok) {
-        throw new Error('Query analysis failed');
-      }
-
+      let analysisText = "";
       const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response stream');
-
-      let analysisResult = "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        analysisResult += new TextDecoder().decode(value);
+        analysisText += new TextDecoder().decode(value);
       }
 
-      let analysis;
-      try {
-        analysis = JSON.parse(analysisResult);
-      } catch (e) {
-        console.error('[Chat] Failed to parse analysis result:', e);
-        throw new Error('Invalid analysis result format');
-      }
-
-      console.log('[Chat] Query analysis:', analysis);
-
-      // Construct the final search query
-      let finalQuery = analysis.optimizedQuery;
-      // if (analysis.requiresTimeContext) {
-      //   finalQuery = `${finalQuery} after:${currentDate.slice(0, 4)}`;
-      // }
-
-      console.log('[Chat] Optimized search query:', finalQuery);
-
-      // Perform the actual search with the optimized query
-      const encodedQuery = encodeURIComponent(finalQuery.trim());
-      const searchResponse = await fetch(`/api/search?q=${encodedQuery}`);
-      
-      if (!searchResponse.ok) {
-        throw new Error('Search failed');
-      }
-      
-      const searchData = await searchResponse.json();
-      console.log('[Chat] Search results received:', {
-        originalQuery: query,
-        optimizedQuery: finalQuery,
-        resultsCount: searchData.results?.length || 0,
-        timestamp: searchData.timestamp
-      });
-      
-      return {
-        ...searchData,
-        analysis: analysis.rationale // Include the rationale in the results
-      };
-
-    } catch (error) {
-      console.error('[Chat] Web search error:', error);
-      throw error;
+      return JSON.parse(analysisText);
     }
+
+    async function fetchUrlContent(url: string) {
+      try {
+        console.log('[Chat] Fetching content from URL:', url);
+        const response = await fetch(`/api/fetch-url?url=${encodeURIComponent(url)}`);
+        if (!response.ok) throw new Error('URL fetch failed');
+        const content = await response.json();
+        return content;
+      } catch (error) {
+        console.error('[Chat] URL fetch error:', error);
+        return null;
+      }
+    }
+
+    async function analyzeUrlContent(content: string, query: string) {
+      const analysisPrompt = `Analyze this content for relevance to query: "${query}"
+Content: ${content.substring(0, 2000)}...
+
+Return JSON only:
+{
+  "relevance": number,
+  "satisfiesQuery": boolean,
+  "keyInsights": string[],
+  "rationale": string
+}`;
+
+      const response = await fetch(`/api/chat/${$page.params.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          content: analysisPrompt,
+          modelId: $selectedModel?.id,
+          system: "You are a content analyzer that only returns valid JSON."
+        })
+      });
+
+      let analysisText = "";
+      const reader = response.body?.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        analysisText += new TextDecoder().decode(value);
+      }
+
+      return JSON.parse(analysisText);
+    }
+
+    while (searchAttempts < MAX_SEARCH_ATTEMPTS) {
+      try {
+        // 1. Initial search
+        const searchResults = await performInitialSearch(query);
+        console.log('[Chat] Initial search results:', searchResults);
+
+        // 2. Analyze search results
+        const analysis = await analyzeSearchResults(searchResults.results, query);
+        console.log('[Chat] Search results analysis:', analysis);
+
+        // If results are satisfactory, return them
+        if (analysis.completeness >= 70 && analysis.timeRelevance >= 70 && analysis.queryMatch >= 70) {
+          console.log('[Chat] Search results are satisfactory');
+          return searchResults;
+        }
+
+        // 3. Fetch and analyze additional content if needed
+        if (analysis.needsMoreContent) {
+          const enhancedResults = [...searchResults.results];
+          for (const url of analysis.relevantUrls.slice(0, MAX_URL_FETCHES)) {
+            const content = await fetchUrlContent(url);
+            if (!content) continue;
+
+            const contentAnalysis = await analyzeUrlContent(content.text, query);
+            console.log('[Chat] URL content analysis:', { url, analysis: contentAnalysis });
+
+            if (contentAnalysis.satisfiesQuery) {
+              const resultIndex = enhancedResults.findIndex(r => r.url === url);
+              if (resultIndex !== -1) {
+                enhancedResults[resultIndex] = {
+                  ...enhancedResults[resultIndex],
+                  extractedContent: content.text,
+                  contentAnalysis: contentAnalysis.keyInsights
+                };
+              }
+            }
+          }
+
+          // Return enhanced results if they're now satisfactory
+          const finalAnalysis = await analyzeSearchResults(enhancedResults, query);
+          if (finalAnalysis.completeness >= 70 && finalAnalysis.timeRelevance >= 70) {
+            return {
+              ...searchResults,
+              results: enhancedResults,
+              analysis: finalAnalysis
+            };
+          }
+        }
+
+        // 4. If still not satisfactory, try to generate a better query
+        const refinedQueryPrompt = `Based on the search results and analysis:
+Original query: "${query}"
+Results analysis: ${JSON.stringify(analysis, null, 2)}
+
+Generate a refined search query that will:
+1. Address missing information
+2. Focus on more recent content
+3. Better match user intent
+
+Return JSON only:
+{
+  "refinedQuery": string,
+  "rationale": string
+}`;
+
+        const refinedQueryResponse = await fetch(`/api/chat/${$page.params.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            content: refinedQueryPrompt,
+            modelId: $selectedModel?.id,
+            system: "You are a query refinement assistant that only returns valid JSON."
+          })
+        });
+
+        let refinedQueryText = "";
+        const reader = refinedQueryResponse.body?.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          refinedQueryText += new TextDecoder().decode(value);
+        }
+
+        const refinedQuery = JSON.parse(refinedQueryText);
+        console.log('[Chat] Generated refined query:', refinedQuery);
+
+        // Update query for next attempt
+        query = refinedQuery.refinedQuery;
+        searchAttempts++;
+
+      } catch (error) {
+        console.error('[Chat] Search optimization error:', error);
+        throw error;
+      }
+    }
+
+    // If we've exhausted our attempts, return the best results we have
+    console.log('[Chat] Maximum search attempts reached');
+    return await performInitialSearch(query);
+  }
+
+  // Helper function for the actual search API call
+  async function performInitialSearch(query: string) {
+    const encodedQuery = encodeURIComponent(query.trim());
+    const response = await fetch(`/api/search?q=${encodedQuery}`);
+    
+    if (!response.ok) {
+      throw new Error('Search failed');
+    }
+    
+    return await response.json();
   }
 
   // 添加工具选择处理函数
