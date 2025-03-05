@@ -412,24 +412,24 @@ Important: Keep the response concise and ensure it's valid JSON.`;
 
           const promptTemplate = {
             zh: `你是一个有帮助的助手，可以访问最新的网络搜索结果。
-请根据以下搜索结果，提供一个全面但简洁的回答,输出语言为中文。
-重点关注最相关和最新的信息。在适当的时候包含具体细节。
+请基于搜索结果和部分链接内容，总结整理输入,输出语言为中文。
+保留数字的关键细节信息。
 使用markdown格式以提高可读性。
 
 要求：
-1. 综合这些搜索结果的信息
+1. 整合这些搜索结果，不要包含特殊字符。
 2. 提供准确和最新的信息
 3. 使用markdown格式以提高可读性
 4. 如果搜索结果看起来过时或不相关，请说明
 5. 引用具体信息时包含相关带有来源(可点击)编号 [1], [2] 等`,
 
-            en: `You are a helpful assistant with access to recent web search results. 
-Based on the following search results, provide a comprehensive but concise response.
-Focus on the most relevant and recent information. Include specific details when appropriate.
-Format your response using markdown for better readability.
+            en: `You are a helpful assistant with access to the latest web search results.
+Please summarize and organize the input based on search results and partial content from links. The output language should be English.
+Retain key numerical details.
+Use Markdown formatting to enhance readability..
 
 Instructions:
-1. Synthesize the information from these search results
+1. Synthesize the information from these search results,do not include special characters.
 2. Provide accurate and up-to-date information
 3. Use markdown formatting for better readability
 4. If search results seem outdated or irrelevant, mention this
