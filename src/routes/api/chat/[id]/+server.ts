@@ -114,6 +114,11 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
     const { content, modelId, temperature = 0.7, max_tokens } = await request.json();
     //console.log('Received request:', { content, modelId, temperature, max_tokens });
     
+    // 检查是否是系统指令
+    const isSystemPrompt = content.startsWith('Analyze these search results for the query') ||
+                          content.startsWith('你是一个有帮助的助手，可以访问最新的网络搜索结果') ||
+                          content.startsWith('You are a helpful assistant with access to the latest web search results');
+
     // 获取指定的模型配置
     let modelConfig = await prisma.modelConfig.findFirst({
       where: { 
@@ -145,13 +150,16 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
       select: { role: true, content: true }
     });
 
-    await prisma.message.create({
-      data: {
-        sessionId: params.id,
-        role: "user",
-        content
-      }
-    });
+    // 只有非系统指令才保存到数据库
+    if (!isSystemPrompt) {
+      await prisma.message.create({
+        data: {
+          sessionId: params.id,
+          role: "user",
+          content
+        }
+      });
+    }
 
     const messages = [...history, { role: 'user', content }];
     let fullAssistantMessage = '';
@@ -194,33 +202,35 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
           while (true) {
             const { done, value } = await reader.read();
             if (done) {
-              // Save the complete message and generate title
-              await prisma.message.create({
-                data: {
-                  sessionId: params.id,
-                  role: "assistant",
-                  content: fullAssistantMessage
+              // 只有非系统指令且不是JSON响应时才保存assistant消息
+              //console.log('Saving assistant message:', fullAssistantMessage);
+              if ( !fullAssistantMessage.includes('"completeness":')) {
+                await prisma.message.create({
+                  data: {
+                    sessionId: params.id,
+                    role: "assistant",
+                    content: fullAssistantMessage
+                  }
+                });
+
+                // 检查是否需要生成标题
+                const messageCount = await prisma.message.count({
+                  where: { sessionId: params.id }
+                });
+
+                if (messageCount === 2) {
+                  fetch(`/api/chat/${params.id}/generate-title`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                      temperature: 0.3,
+                      max_tokens: 50
+                    })
+                  }).catch(console.error);
                 }
-              });
-
-              // Check if title generation is needed
-              const messageCount = await prisma.message.count({
-                where: { sessionId: params.id }
-              });
-
-              if (messageCount === 2) {
-                fetch(`/api/chat/${params.id}/generate-title`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({
-                    temperature: 0.3, // Use lower temperature for title generation
-                    max_tokens: 50    // Limit tokens for title
-                  })
-                }).catch(console.error);
               }
-              
               break;
             }
 
