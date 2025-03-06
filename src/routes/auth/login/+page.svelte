@@ -24,6 +24,9 @@
         loading = false;
         if (result.type === 'error') {
           error = result.error.message;
+        } else if (result.type === 'redirect') {
+          // 处理重定向响应
+          window.location.href = result.location;
         } else if (result.data?.success) {
           await goto('/chat');
         }

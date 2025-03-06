@@ -53,27 +53,36 @@ export const actions: Actions = {
         {}
       );
 
-      // 登录成功后设置会话 Cookie - 使用环境变量确定Cookie设置
+      // 登录成功后设置会话 Cookie
       const sessionCookie = auth.createSessionCookie(session.id);
       
-      // 判断是否跨域场景
-      const isCrossDomain = !!PUBLIC_EXTERNAL_DOMAIN;
+      // 检查访问方式
+      const host = request.headers.get('host') || '';
+      const isIPAddress = /\d+\.\d+\.\d+\.\d+/.test(host);
+      const protocol = request.headers.get('x-forwarded-proto') || 'http';
       
       cookies.set(sessionCookie.name, sessionCookie.value, { 
         ...sessionCookie.attributes,
         path: '/',
         httpOnly: true,
-        secure: true,
-        sameSite: isCrossDomain ? 'none' : 'lax',
+        // 只在HTTPS时设置secure
+        secure: protocol === 'https',
+        // IP地址访问时使用lax而不是none
+        sameSite: isIPAddress ? 'lax' : 'strict',
         maxAge: 60 * 60 * 24 * 7  // 7天有效期
       });
       
-      return { success: true };
+      // 明确指定重定向到聊天页面
+      throw redirect(302, "/chat");
     } catch (error) {
-      console.error(error);
-      return fail(500, {
-        message: "An error occurred while logging in"
-      });
+      // 只捕获非重定向错误
+      if (error instanceof Error && !(error.message && error.message.includes('redirect'))) {
+        console.error(error);
+        return fail(500, {
+          message: "An error occurred while logging in"
+        });
+      }
+      throw error; // 重新抛出重定向等特殊错误
     }
   }
 };
