@@ -1,42 +1,75 @@
 <script lang="ts">
-  import { Loader2, ChevronDown, ChevronUp, X } from "lucide-svelte";
-  import { Button } from "$lib/components/ui/button";
-
+  import { X, Search, RefreshCw, CheckCircle, AlertTriangle, BookOpen, ChevronUp, ChevronDown, Loader2 } from "lucide-svelte";
+  
   export let searchProgress: {
     status: "idle" | "analyzing" | "searching" | "fetching" | "complete" | "error";
     query: string;
-    searchKeywords: string;
+    searchKeywords?: string;
     searchResults: any[] | null;
     analysis: any | null;
     error: string | null;
+    subtasks?: {
+      question: string;
+      keywords: string;
+      priority: number;
+    }[];
+    currentSubtask?: number;
+    totalSubtasks?: number;
+    currentKeywords?: string;
   };
   
   export let onClose: () => void;
-  export let isSidebar: boolean = false;
-
-  // Collapsible sections state
-  let showKeywords = true;
+  export let isSidebar = false;
+  
+  // UI state
+  let showKeywords = false;
   let showResults = true;
-  // Removing showAnalysis as we won't be displaying that section
-
-  // Format timestamp for display
-  const formatTime = () => {
+  
+  function getStatusIcon(status: string) {
+    switch(status) {
+      case "analyzing": return RefreshCw;
+      case "searching": return Search;
+      case "fetching": return BookOpen;
+      case "complete": return CheckCircle;
+      case "error": return AlertTriangle;
+      default: return Search;
+    }
+  }
+  
+  function getStatusColor(status: string) {
+    switch(status) {
+      case "analyzing": return "text-yellow-500";
+      case "searching": return "text-blue-500";
+      case "fetching": return "text-purple-500";
+      case "complete": return "text-green-500";
+      case "error": return "text-red-500";
+      default: return "text-gray-500";
+    }
+  }
+  
+  function formatTime() {
     return new Date().toLocaleTimeString();
-  };
-
-  // Helper function to truncate long text
-  function truncate(text: string, length: number = 100) {
+  }
+  
+  function truncate(text: string, length: number) {
     if (!text) return '';
     return text.length > length ? text.substring(0, length) + '...' : text;
   }
 </script>
 
-<div class="{isSidebar ? 'h-full flex flex-col' : 'bg-gray-50 border rounded-lg mb-4'} relative">
-  <div class="sticky top-0 z-10 flex items-center justify-between p-3 bg-gray-100 border-b shrink-0">
-    <h3 class="font-medium text-sm text-gray-700">Search Progress</h3>
-    <Button variant="ghost" size="icon" on:click={onClose} class="h-8 w-8">
+<div class="{isSidebar ? 'h-full flex flex-col' : 'rounded-lg border shadow-sm'} bg-gray-50">
+  <div class="flex justify-between items-center p-3 border-b bg-white shrink-0">
+    <div class="font-semibold flex items-center gap-2">
+      <svelte:component this={getStatusIcon(searchProgress.status)} class="h-4 w-4 {getStatusColor(searchProgress.status)}" />
+      <span>Search Progress</span>
+    </div>
+    <button 
+      class="p-1 hover:bg-gray-100 rounded-full"
+      on:click={onClose}
+      aria-label="Close search progress"
+    >
       <X class="h-4 w-4" />
-    </Button>
+    </button>
   </div>
 
   <div class="p-3 {isSidebar ? 'flex flex-col flex-1 overflow-hidden' : ''}">

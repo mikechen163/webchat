@@ -361,18 +361,31 @@ Important: Keep the response concise and ensure it's valid JSON.`;
   // Helper function for the actual search API call
   async function performInitialSearch(query: string) {
     try {
+      searchProgress.status = "analyzing";
+      searchProgress.query = query;
+      
       // 1. 分析用户意图和获取关键词
-      const analysisPrompt = `Analyze this query and extract search keywords:
-  Query: "${query}"
-  
-  Return a JSON object with these fields:
-  {
-    "isChinaRelated": boolean,  // true if query is specifically about Chinese topics, culture, places, or people
-    "searchKeywords": string,   // always in English unless China-related
-    "rationale": string        // brief explanation
-  }
-  
-  `;
+      const analysisPrompt = `Analyze this query and determine the search strategy:
+Query: "${query}"
+
+1. keywords should be in English (unless specifically about Chinese topics)  
+2. add date keyword if recent information is important  
+3. keywords should not be within 5 words
+
+Return a JSON object with exactly these fields:
+{
+  "requiresSearch": boolean,  // true if the query requires web search to answer accurately
+  "reasoning": string,        // brief explanation why search is or isn't needed
+  "subtasks": [               // if requiresSearch is true, break down into 1-3 search subtasks
+    {
+      "question": string,     // specific sub-question
+      "keywords": string,     // search keywords in English (unless specifically about Chinese topics)
+      "priority": number      // 1-10, importance of this subtask (10 being highest)
+    }
+  ],
+  "considerFreshness": boolean,  // true if recent information is important 
+  "considerCompleteness": boolean // true if comprehensive information is important
+}`;
   
       const response = await fetch(`/api/chat/${$page.params.id}`, {
         method: "POST",
@@ -387,62 +400,96 @@ Important: Keep the response concise and ensure it's valid JSON.`;
       });
   
       let analysisText = await streamToText(response);
-      //console.log('[Chat] Query analysis text:', analysisText);
       analysisText = analysisText.replace(/<think>[\s\S]*?<\/think>/g, '');
-    
-
-       const cleanJson = (text: string): string => {
-      try {
-        // First attempt: Try to parse as-is
-        JSON.parse(text);
-        return text;
-      } catch {
+      
+      const cleanJson = (text: string): string => {
         try {
-          // Second attempt: Clean up the text and try to extract JSON
-          text = text.replace(/```json|```/g, '').trim();
-          
-          // Find the first '{' and last '}'
-          const start = text.indexOf('{');
-          const end = text.lastIndexOf('}') + 1;
-          
-          if (start === -1 || end === 0) {
-            throw new Error('No JSON object found');
-          }
-          
-          const extracted = text.slice(start, end);
-          
-          // Validate the extracted JSON
-          JSON.parse(extracted);
-          return extracted;
-        } catch (e) {
-          // Third attempt: Try to fix truncated JSON
+          // First attempt: Try to parse as-is
+          JSON.parse(text);
+          return text;
+        } catch {
           try {
-            const fixedJson = fixTruncatedJson(text);
-            return fixedJson;
-          } catch {
-            console.error('Failed to fix JSON:', text);
-            throw new Error('Invalid JSON structure in response');
+            // Second attempt: Clean up the text and try to extract JSON
+            text = text.replace(/```json|```/g, '').trim();
+            
+            // Find the first '{' and last '}'
+            const start = text.indexOf('{');
+            const end = text.lastIndexOf('}') + 1;
+            
+            if (start === -1 || end === 0) {
+              throw new Error('No JSON object found');
+            }
+            
+            const extracted = text.slice(start, end);
+            
+            // Validate the extracted JSON
+            JSON.parse(extracted);
+            return extracted;
+          } catch (e) {
+            // Third attempt: Try to fix truncated JSON
+            try {
+              const fixedJson = fixTruncatedJson(text);
+              return fixedJson;
+            } catch {
+              console.error('Failed to fix JSON:', text);
+              throw new Error('Invalid JSON structure in response');
+            }
           }
         }
-      }
-    };
+      };
 
-    const analysis = JSON.parse(cleanJson(analysisText));
+      const analysis = JSON.parse(cleanJson(analysisText));
+
+      console.log('[Chat] Search analysis:', analysis);
       
-      // Update search progress with search keywords
-      searchProgress.searchKeywords = analysis.searchKeywords;
-      searchProgress.status = "searching";
+      // 2. Extract search query from analysis - IMPROVED EXTRACTION LOGIC
+      let searchQuery = query; // Default to original query
+      
+      try {
+        // First check if there are any subtasks with keywords
+        if (analysis.requiresSearch && analysis.subtasks && Array.isArray(analysis.subtasks) && analysis.subtasks.length > 0) {
+          // Sort subtasks by priority (highest first)
+          const sortedSubtasks = [...analysis.subtasks].sort((a, b) => 
+            (b.priority || 0) - (a.priority || 0)
+          );
+          
+          // Get keyword from highest priority subtask
+          const highestPrioritySubtask = sortedSubtasks[0];
+          
+          if (highestPrioritySubtask && typeof highestPrioritySubtask.keywords === 'string' && 
+              highestPrioritySubtask.keywords.trim()) {
+            searchQuery = highestPrioritySubtask.keywords.trim();
+            
+            // Save the keywords for display in the UI
+            searchProgress.searchKeywords = searchQuery;
+            
+            // Add freshness signal if needed
+            if (analysis.considerFreshness) {
+              const currentYear = new Date().getFullYear();
+              
+              // Only add year if it doesn't already include recent time indicators
+              const hasTimeIndicator = /202[3-4]|recent|latest|current|today|yesterday|week|month/i.test(searchQuery);
+              
+              if (!hasTimeIndicator) {
+                searchQuery += ` ${currentYear}`;
+              }
+            }
+            
+            console.log('[Chat] Using keywords from subtask:', searchQuery);
+          } else {
+            console.log('[Chat] No valid keywords in highest priority subtask, falling back to original query');
+          }
+        } else {
+          console.log('[Chat] No subtasks found or search not required, using original query');
+        }
+      } catch (extractError) {
+        console.error('[Chat] Error extracting keywords from analysis:', extractError);
+        // Fall back to original query on any extraction error
+      }
 
-    //console.log('[Chat] Query analysis:', analysis);
-
-    // 2. 使用优化后的关键词进行搜索
-    const searchQuery = analysis.searchKeywords;
-
-      console.log('[Chat] Encoded search query:', searchQuery);
-
-      const encodedQuery = encodeURIComponent(searchQuery.trim());
-      console.log('[Chat] Using search query:', searchQuery);
-  
+      console.log('[Chat] Final search query:', searchQuery);
+      const encodedQuery = encodeURIComponent(searchQuery);
+      
       const searchResponse = await fetch(`/api/search?q=${encodedQuery}`);
       if (!searchResponse.ok) {
         throw new Error('Search failed');
@@ -451,7 +498,7 @@ Important: Keep the response concise and ensure it's valid JSON.`;
       const results = await searchResponse.json();
       return {
         ...results,
-        queryAnalysis: analysis  // 包含分析信息以供后续使用
+        queryAnalysis: analysis
       };
   
     } catch (error) {
@@ -608,7 +655,7 @@ ${formattedResults}
           modelId: $selectedModel?.id,
           // Use moderate temperature for final response to balance creativity and accuracy
           temperature: 0.7,
-          //max_tokens: 128000,
+          max_tokens: 4000,
         }),
         signal: abortController.signal
       });
