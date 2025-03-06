@@ -793,30 +793,49 @@ ${formattedResults}
         </div>
       </div>
     </div>
-    <!-- Messages -->
-    <div 
-      class="flex-1 overflow-y-auto overscroll-contain"
-      bind:this={messageContainer}
-      on:scroll={handleScroll}
-    >
-      <div class="w-full md:max-w-3xl lg:max-w-4xl mx-auto px-3 md:px-4 py-3 md:py-4 space-y-4">
-        <!-- Search Progress Display -->
-        {#if webSearchMode && showSearchProgress && searchProgress.status !== "idle"}
+    
+    <!-- Main content area with chat and search progress sidebar -->
+    <div class="flex flex-1 overflow-hidden">
+      <!-- Messages container -->
+      <div 
+        class="flex-1 overflow-y-auto overscroll-contain"
+        bind:this={messageContainer}
+        on:scroll={handleScroll}
+      >
+        <div class="w-full md:max-w-3xl lg:max-w-4xl mx-auto px-3 md:px-4 py-3 md:py-4 space-y-4">
+          {#each messages as message (message.id)}
+            <ChatBubble 
+              role={message.role}
+              content={message.content}
+              timestamp={message.createdAt}
+            />
+          {/each}
+        </div>
+      </div>
+      
+      <!-- Search Progress Sidebar -->
+      {#if webSearchMode && showSearchProgress && searchProgress.status !== "idle"}
+        <div class="hidden md:block w-80 lg:w-96 border-l bg-gray-50 overflow-y-auto">
           <SearchProgressDisplay 
             searchProgress={searchProgress} 
-            onClose={() => showSearchProgress = false} 
+            onClose={() => showSearchProgress = false}
+            isSidebar={true}
           />
-        {/if}
+        </div>
         
-        {#each messages as message (message.id)}
-          <ChatBubble 
-            role={message.role}
-            content={message.content}
-            timestamp={message.createdAt}
-          />
-        {/each}
-      </div>
+        <!-- Mobile overlay version -->
+        <div class="md:hidden fixed inset-0 bg-black/30 z-50 {showSearchProgress ? 'block' : 'hidden'}">
+          <div class="absolute right-0 top-0 bottom-0 w-[85%] max-w-md bg-white shadow-lg overflow-y-auto">
+            <SearchProgressDisplay 
+              searchProgress={searchProgress} 
+              onClose={() => showSearchProgress = false} 
+              isSidebar={true}
+            />
+          </div>
+        </div>
+      {/if}
     </div>
+    
     <!-- Typing Indicator -->
     {#if sending}
       <div class="shrink-0">
@@ -825,7 +844,8 @@ ${formattedResults}
         </div>
       </div>
     {/if}
-    <!-- Input part - Fixed position on mobile -->
+    
+    <!-- Input part -->
     <div class="border-t flex-shrink-0 bg-white sticky bottom-0 left-0 right-0 z-10">
       <div class="w-full md:max-w-3xl lg:max-w-4xl mx-auto px-3 md:px-4 py-3 md:py-4">
         <!-- Tool bar -->
