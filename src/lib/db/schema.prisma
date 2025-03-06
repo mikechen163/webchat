@@ -20,6 +20,8 @@ model User {
   authSession  AuthSession[] // renamed from auth_session
   key          Key[]
   sessions     Session[]
+  defaultModel String?
+  searchModel  String?
 }
 
 model AuthSession {

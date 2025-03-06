@@ -109,10 +109,9 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`;
   }
 }
 
-export async function POST({ request, params, fetch }) {  // Add fetch to destructured params
+export async function POST({ request, params, fetch, locals }) {
   try {
-    const { content, modelId, temperature = 0.7, max_tokens } = await request.json();
-    //console.log('Received request:', { content, modelId, temperature, max_tokens });
+    const { content, modelId, temperature = 0.7, max_tokens, isSearchAnalysis = false } = await request.json();
     
     // 检查是否是系统指令
     const isSystemPrompt = content.startsWith('Analyze these search results for the query') ||
@@ -121,18 +120,60 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
                           content.startsWith('Analyze this query and determine the search strategy') ||
                           content.startsWith('You are a helpful assistant. Please summarize and organize the information based on the search');
 
+    // If this is search analysis, try to get user's preferred search model
+    const { user } = locals.auth || {};
+    let preferredModelId = modelId;
+    
+    if (user && isSearchAnalysis) {
+      try {
+        // Get user directly for search model preference
+        const userData = await prisma.user.findUnique({
+          where: { id: user.id }
+        });
+        
+        // Only use searchModel if it exists in the schema and has a value
+        if (userData && 'searchModel' in userData && userData.searchModel) {
+          preferredModelId = userData.searchModel;
+        }
+      } catch (e) {
+        // If the field doesn't exist yet, just continue with the provided modelId
+        console.log('Could not access searchModel preference, using provided model instead:', e.message);
+      }
+    }
+
     // 获取指定的模型配置
     let modelConfig = await prisma.modelConfig.findFirst({
       where: { 
-        id: modelId,
+        id: preferredModelId,
         enabled: true 
       }
     });
 
     if (!modelConfig) {
-      // If no specific model found, try to get default model
+      // If no specific model found, try to get user's default model
+      let defaultModelId = null;
+      
+      if (user) {
+        try {
+          const userData = await prisma.user.findUnique({
+            where: { id: user.id }
+          });
+          
+          // Only use defaultModel if it exists in the schema and has a value
+          if (userData && 'defaultModel' in userData && userData.defaultModel) {
+            defaultModelId = userData.defaultModel;
+          }
+        } catch (e) {
+          // If the field doesn't exist yet, just continue with any enabled model
+          console.log('Could not access defaultModel preference, using any enabled model instead:', e.message);
+        }
+      }
+      
       const defaultModel = await prisma.modelConfig.findFirst({
-        where: { enabled: true }
+        where: { 
+          ...(defaultModelId ? { id: defaultModelId } : {}),
+          enabled: true 
+        }
       });
       
       console.log('Falling back to default model:', defaultModel);

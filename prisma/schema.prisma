@@ -1,0 +1,14 @@
+// Add to the existing UserPreference model 
+
+model UserPreference {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  defaultModel String?
+  searchModel String?  // Added field for search model preference
+  theme       String?
+  language    String?
+  displayName String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id])
+}

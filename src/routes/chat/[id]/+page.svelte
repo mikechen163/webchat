@@ -160,7 +160,8 @@ Important: Keep the response concise and ensure it's valid JSON.`;
         modelId: $selectedModel?.id,
         temperature: 0.3,
         max_tokens: 2000,
-        system: "You are a search results analyzer. Return only valid JSON, no explanation or formatting."
+        system: "You are a search results analyzer. Return only valid JSON, no explanation or formatting.",
+        isSearchAnalysis: true // Flag to use search model
       })
     });
 
@@ -426,7 +427,8 @@ Return a JSON object with exactly these fields:
           modelId: $selectedModel?.id,
           temperature: 0.3,
           max_tokens: 2000,
-          system: "You are a query analyzer. Return only valid JSON."
+          system: "You are a query analyzer. Return only valid JSON.",
+          isSearchAnalysis: true // Flag to use search model
         })
       });
   

@@ -5,12 +5,14 @@
   import { page } from "$app/stores";
   import { selectedModel } from "$lib/stores/selectedModel";
   import { language, t } from "$lib/stores/i18n";
+  import { onMount } from "svelte";
   
   // User preferences
   let username = $page.data.user?.email.split('@')[0] || "";
   let displayName = "";
   let preferredTheme = "system";
   let defaultModel = $selectedModel?.id || "gpt-3.5-turbo";
+  let searchModel = "gpt-3.5-turbo"; // Default search model
   let preferredLanguage = "en";
   
   // Available themes
@@ -20,8 +22,8 @@
     { value: "dark", label: "Dark" }
   ];
   
-  // Available models
-  const models = [
+  // Available models - we'll fetch these from the API
+  let models = [
     { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
     { value: "gpt-4", label: "GPT-4" },
     { value: "claude-instant", label: "Claude Instant" },
@@ -35,6 +37,36 @@
 
   // Subscribe to language changes
   $: currentLang = $language;
+  
+  // Fetch user preferences on mount
+  onMount(async () => {
+    try {
+      const response = await fetch("/api/user/preferences");
+      if (response.ok) {
+        const prefs = await response.json();
+        if (prefs.defaultModel) defaultModel = prefs.defaultModel;
+        if (prefs.searchModel) searchModel = prefs.searchModel;
+        if (prefs.theme) preferredTheme = prefs.theme;
+        if (prefs.language) {
+          preferredLanguage = prefs.language;
+          language.set(prefs.language);
+        }
+        if (prefs.displayName) displayName = prefs.displayName;
+      }
+      
+      // Also fetch available models
+      const modelsResponse = await fetch("/api/models/all");
+      if (modelsResponse.ok) {
+        const modelData = await modelsResponse.json();
+        models = modelData.map((m: any) => ({ 
+          value: m.id, 
+          label: `${m.provider?.name || 'Other'} / ${m.name}` 
+        }));
+      }
+    } catch (err) {
+      console.error("Failed to load preferences:", err);
+    }
+  });
 
   // Update language when preference changes
   function handleLanguageChange(event: Event) {
@@ -45,13 +77,35 @@
 
   // Save user preferences
   async function savePreferences() {
-    // In a real app, this would send data to the server
-    await new Promise(resolve => setTimeout(resolve, 800));
-    toast({
-      title: "Preferences Updated",
-      description: "Your preferences have been saved successfully",
-      type: "success"
-    });
+    try {
+      const response = await fetch("/api/user/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          defaultModel,
+          searchModel,
+          theme: preferredTheme,
+          language: preferredLanguage,
+          displayName
+        })
+      });
+      
+      if (response.ok) {
+        toast({
+          title: t('userPreferences.saveSuccess', currentLang),
+          description: t('userPreferences.saveSuccessDetails', currentLang),
+          type: "success"
+        });
+      } else {
+        throw new Error("Failed to save preferences");
+      }
+    } catch (err) {
+      toast({
+        title: t('userPreferences.saveError', currentLang),
+        description: String(err),
+        type: "error"
+      });
+    }
   }
 </script>
 
@@ -130,6 +184,21 @@
               <option value={model.value}>{model.label}</option>
             {/each}
           </select>
+          <p class="text-xs text-gray-500 mt-1">Used when no specific model is selected or when the selected model fails</p>
+        </div>
+
+        <div>
+          <label for="searchModel" class="block mb-1 font-medium">Search Analysis Model</label>
+          <select
+            id="searchModel"
+            bind:value={searchModel}
+            class="w-full rounded-md border border-gray-300 p-2 text-sm"
+          >
+            {#each models as model}
+              <option value={model.value}>{model.label}</option>
+            {/each}
+          </select>
+          <p class="text-xs text-gray-500 mt-1">Used for analyzing queries and search results during web searches</p>
         </div>
 
         <!-- Message Display Options -->
