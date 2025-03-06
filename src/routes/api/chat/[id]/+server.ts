@@ -181,7 +181,9 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
     const messages = [...history, { role: 'user', content }];
     let fullAssistantMessage = '';
     
+    
     console.log('Making API request:', {
+      command: content.substring(0, 50),
       baseUrl: modelConfig.baseUrl,
       model: modelConfig.model,
       temperature,

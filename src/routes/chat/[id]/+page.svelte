@@ -398,7 +398,7 @@ Query: "${query}"
 Recent conversation context:
 ${recentMessages}
 
-1. keywords should be in English (unless specifically about Chinese topics)  
+1. keywords should be in English (unless this is a topic about China or Chinese culture, people,companies etc, in that case use Chinese)  
 2. Today is ${new Date().toISOString().split('T')[0]} , consider freshness
 3. keywords should not be within 5 words
 4. use official ir website for financial information , then use other sources like msn etc, ignore sites like businesswire.com reuters.com
@@ -661,7 +661,7 @@ Return a JSON object with exactly these fields:
 
           // 调试用户语言信息
           //console.log('[Chat] Session data:', data.session);
-          //console.log('[Chat] User data:', data.session.user);
+          console.log('[Chat] User data:', data.session.user);
           
           const userLang = data.session.user?.language || 'en';
           console.log('[Chat] Detected user language:', userLang);

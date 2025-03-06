@@ -9,7 +9,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   if (!user) throw error(401, "Unauthorized");
 
   // 增加调试日志
-  console.log('Loading session for user:', user);
+  //console.log('Loading session for user:', user);
 
   const session = await prisma.session.findUnique({
     where: { 
