@@ -201,7 +201,7 @@ Important: Keep the response concise and ensure it's valid JSON.`;
 
     try {
       const cleanedText = cleanJson(analysisText);
-      console.log('[Chat] Cleaned JSON text:', cleanedText);
+      //console.log('[Chat] Cleaned JSON text:', cleanedText);
       const analysis = JSON.parse(cleanedText);
       
       // Update search progress with analysis results
@@ -301,7 +301,7 @@ Important: Keep the response concise and ensure it's valid JSON.`;
       try {
         // 1. Initial search
         const searchResults = await performInitialSearch(query);
-        console.log('[Chat] Initial search results:', searchResults);
+        //console.log('[Chat] Initial search results:', searchResults);
         
         // Update searchProgress with search results
         searchProgress.searchResults = searchResults.results;
@@ -309,7 +309,7 @@ Important: Keep the response concise and ensure it's valid JSON.`;
 
         // 2. Analyze search results
         const analysis = await analyzeSearchResults(searchResults.results, query);
-        console.log('[Chat] Search results analysis:', analysis);
+        //console.log('[Chat] Search results analysis:', analysis);
 
         // 3. Fetch content from relevant URLs
         const enhancedResults = [];
@@ -433,7 +433,7 @@ Important: Keep the response concise and ensure it's valid JSON.`;
       searchProgress.searchKeywords = analysis.searchKeywords;
       searchProgress.status = "searching";
 
-    console.log('[Chat] Query analysis:', analysis);
+    //console.log('[Chat] Query analysis:', analysis);
 
     // 2. 使用优化后的关键词进行搜索
     const searchQuery = analysis.searchKeywords;
@@ -547,8 +547,8 @@ Important: Keep the response concise and ensure it's valid JSON.`;
             .join('\n\n');
 
           // 调试用户语言信息
-          console.log('[Chat] Session data:', data.session);
-          console.log('[Chat] User data:', data.session.user);
+          //console.log('[Chat] Session data:', data.session);
+          //console.log('[Chat] User data:', data.session.user);
           
           const userLang = data.session.user?.language || 'en';
           console.log('[Chat] Detected user language:', userLang);
