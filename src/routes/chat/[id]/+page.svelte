@@ -282,7 +282,7 @@ Important: Keep the response concise and ensure it's valid JSON.`;
     console.log('[Chat] Initial search query:', query);
     let searchAttempts = 0;
     const MAX_SEARCH_ATTEMPTS = 1;
-    const MAX_URL_FETCHES = 2;
+    const MAX_URL_FETCHES = 3;
     
     // Reset and show search progress
     searchProgress = {
