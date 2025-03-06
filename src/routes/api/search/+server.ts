@@ -2,7 +2,7 @@ import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 
-const SEARCH_SERVICE_URL = 'http://127.0.0.1:5100';
+const SEARCH_SERVICE_URL = env.SEARCH_SERVICE_URL || 'http://127.0.0.1:5100';
 const MAX_RETRIES = 1;
 const RETRY_DELAY = 1000;
 

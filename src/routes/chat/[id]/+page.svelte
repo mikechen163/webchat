@@ -323,13 +323,11 @@ Important: Keep the response concise and ensure it's valid JSON.`;
   Return a JSON object with these fields:
   {
     "isChinaRelated": boolean,  // true if query is specifically about Chinese topics, culture, places, or people
-    "searchKeywords": string,   // optimized search terms in English (unless China-related)
+    "searchKeywords": string,   // always in English unless China-related
     "rationale": string        // brief explanation
   }
   
-  Examples:
-  - Query: "中国经济发展情况" -> {"isChinaRelated": true, "searchKeywords": "中国经济发展情况", "rationale": "Query about Chinese economy"}
-  - Query: "苹果公司最新财报" -> {"isChinaRelated": false, "searchKeywords": "Apple earnings report latest", "rationale": "About Apple Inc, better searched in English"}`;
+  `;
   
       const response = await fetch(`/api/chat/${$page.params.id}`, {
         method: "POST",
@@ -498,8 +496,8 @@ Important: Keep the response concise and ensure it's valid JSON.`;
             .join('\n\n');
 
           // 调试用户语言信息
-          //console.log('[Chat] Session data:', data.session);
-          //console.log('[Chat] User data:', data.session.user);
+          console.log('[Chat] Session data:', data.session);
+          console.log('[Chat] User data:', data.session.user);
           
           const userLang = data.session.user?.language || 'en';
           console.log('[Chat] Detected user language:', userLang);
