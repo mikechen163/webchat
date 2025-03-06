@@ -135,8 +135,10 @@
     const analysisPrompt = `Analyze these search results for the query: "${originalQuery}"
 Results: ${JSON.stringify(results, null, 2)}
 
-1 Officail IR website for priority.
-2 Exclude site like  businesswire reuters.
+1 Use official website for priority.
+2 For relevantUrls, think which one is more relevant to the query and in the first 3 place.
+3 Exclude site like  businesswire reuters.
+
 
 Evaluate and return a JSON object with exactly these fields:
 {
@@ -657,7 +659,7 @@ Return a JSON object with exactly these fields:
 
 请做到以下几点：
 1. 删除广告、页面导航等不相关信息
-2. 保留数字的关键细节信息
+2. 完整的内容信息 以"Full content from"开头, 请仔细阅读原文,提取关键信息,保留关键数字细节.
 3. 如果是财报，请从专业投资者角度仔细分析全部财务数据和管理层信息，给出详细分析结果
 4. 使用markdown格式以提高可读性
 5. 去掉所有不相关的信息，整合搜索结果，不要包含特殊字符
@@ -668,7 +670,7 @@ Return a JSON object with exactly these fields:
 
 Please ensure the following:
 1. Remove advertisements, page navigation, and other irrelevant information
-2. Preserve key numerical details
+2. After the “Full content from” is  the original text. Please read the original text carefully, extract key information, and retain key numerical details.
 3. For financial reports, provide detailed analysis from a professional investor's perspective, thoroughly examining all financial data and management information
 4. Use markdown format to improve readability
 5. Remove all irrelevant information, integrate the search results, and avoid special characters
@@ -705,7 +707,7 @@ ${formattedResults}
           modelId: $selectedModel?.id,
           // Use moderate temperature for final response to balance creativity and accuracy
           temperature: 0.7,
-          max_tokens: 4000,
+          max_tokens: 8000,
         }),
         signal: abortController.signal
       });
