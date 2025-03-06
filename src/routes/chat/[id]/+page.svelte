@@ -499,6 +499,8 @@ Return a JSON object with exactly these fields:
             console.log(`[Chat] Searching subtask ${i+1}/${subtasksToSearch.length}: ${searchQuery}`);
             try {
               const subtaskResults = await executeSearch(searchQuery);
+              // Wait 1 second between searches to avoid rate limiting
+              await new Promise(resolve => setTimeout(resolve, 1000));
               
               // Tag results with their source subtask for potential filtering/grouping later
               const taggedResults = subtaskResults.results.map((result: any) => ({
