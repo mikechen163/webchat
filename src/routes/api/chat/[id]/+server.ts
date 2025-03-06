@@ -242,7 +242,7 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
                     },
                     body: JSON.stringify({
                       temperature: 0.3,
-                      max_tokens: 50
+                      max_tokens: 2000
                     })
                   }).catch(console.error);
                 }

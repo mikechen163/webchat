@@ -151,12 +151,14 @@ Important: Keep the response concise and ensure it's valid JSON.`;
         content: analysisPrompt,
         modelId: $selectedModel?.id,
         temperature: 0.3,
-        max_tokens: 500,
+        max_tokens: 2000,
         system: "You are a search results analyzer. Return only valid JSON, no explanation or formatting."
       })
     });
 
     let analysisText = await streamToText(response);
+    // Remove any <think>...</think> blocks from the response
+    analysisText = analysisText.replace(/<think>[\s\S]*?<\/think>/g, '');
     
     // Improved JSON cleaning function
     const cleanJson = (text: string): string => {
@@ -379,13 +381,15 @@ Important: Keep the response concise and ensure it's valid JSON.`;
           content: analysisPrompt,
           modelId: $selectedModel?.id,
           temperature: 0.3,
-          max_tokens: 200,
+          max_tokens: 2000,
           system: "You are a query analyzer. Return only valid JSON."
         })
       });
   
-      const analysisText = await streamToText(response);
-
+      let analysisText = await streamToText(response);
+      //console.log('[Chat] Query analysis text:', analysisText);
+      analysisText = analysisText.replace(/<think>[\s\S]*?<\/think>/g, '');
+    
 
        const cleanJson = (text: string): string => {
       try {

@@ -64,6 +64,7 @@ Response format: { "title": "emoji title here" }`;
 
     const data = await response.json();
     try {
+      const content = data.choices[0].message.content.replace(/<think>.*?<\/think>/g, '');
       const { title } = JSON.parse(data.choices[0].message.content);
       
       // Update session title
