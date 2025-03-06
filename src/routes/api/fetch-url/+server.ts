@@ -49,9 +49,16 @@ export const GET: RequestHandler = async ({ url, fetch }) => {
 
       const data = await response.json();
 
-      console.log('[Fetch URL] Jina API response:', data.text);
-      
-      // Return a simplified response with markdown content
+      console.log('[Fetch URL] Jina API response:', data.data.description);
+      if (typeof data.data.content === 'string' && typeof data.data.description === 'string') {
+        const secondOccurrence = data.data.content.indexOf(data.data.description, data.data.content.indexOf(data.data.description) + 1);
+        if (secondOccurrence !== -1) {
+          data.data.content = data.data.content.substring(secondOccurrence);
+        }
+      }
+
+      //console.log('[Fetch URL] Jina API response:', data.data.content);
+         // Return a simplified response with markdown content
       return json({
         url: targetUrl,
         //timestamp: new Date().toISOString(),

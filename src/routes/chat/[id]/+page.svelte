@@ -107,7 +107,10 @@
     searchKeywords: "",
     searchResults: null as any[] | null,
     analysis: null as any | null,
-    error: null as string | null
+    error: null as string | null,
+    currentSubtask: 0,
+    totalSubtasks: 0,
+    currentKeywords: ""
   };
 
   // 修改工具选项, 直接使用let声明以确保状态变化会触发响应
@@ -131,6 +134,9 @@
     
     const analysisPrompt = `Analyze these search results for the query: "${originalQuery}"
 Results: ${JSON.stringify(results, null, 2)}
+
+1 Officail IR website for priority.
+2 Exclude site like  businesswire reuters.
 
 Evaluate and return a JSON object with exactly these fields:
 {
@@ -358,6 +364,17 @@ Important: Keep the response concise and ensure it's valid JSON.`;
     return await performInitialSearch(query);
   }
 
+  // Add this helper function for executing a single search
+  async function executeSearch(searchQuery: string) {
+    console.log('[Chat] Executing search for:', searchQuery);
+    const encodedQuery = encodeURIComponent(searchQuery);
+    const searchResponse = await fetch(`/api/search?q=${encodedQuery}`);
+    if (!searchResponse.ok) {
+      throw new Error('Search failed');
+    }
+    return await searchResponse.json();
+  }
+
   // Helper function for the actual search API call
   async function performInitialSearch(query: string) {
     try {
@@ -369,8 +386,9 @@ Important: Keep the response concise and ensure it's valid JSON.`;
 Query: "${query}"
 
 1. keywords should be in English (unless specifically about Chinese topics)  
-2. add date keyword if recent information is important  
+2. Today is ${new Date().toISOString().split('T')[0]} , consider freshness
 3. keywords should not be within 5 words
+4. use official ir website for financial information , then use other sources like msn etc, ignore sites like businesswire.com reuters.com
 
 Return a JSON object with exactly these fields:
 {
@@ -439,71 +457,101 @@ Return a JSON object with exactly these fields:
       };
 
       const analysis = JSON.parse(cleanJson(analysisText));
-
       console.log('[Chat] Search analysis:', analysis);
       
-      // 2. Extract search query from analysis - IMPROVED EXTRACTION LOGIC
-      let searchQuery = query; // Default to original query
+      // 2. MODIFIED: Handle multiple search subtasks instead of just the highest priority one
+      let allResults = { results: [] };
       
-      try {
-        // First check if there are any subtasks with keywords
-        if (analysis.requiresSearch && analysis.subtasks && Array.isArray(analysis.subtasks) && analysis.subtasks.length > 0) {
-          // Sort subtasks by priority (highest first)
-          const sortedSubtasks = [...analysis.subtasks].sort((a, b) => 
-            (b.priority || 0) - (a.priority || 0)
-          );
+      if (analysis.requiresSearch && analysis.subtasks && Array.isArray(analysis.subtasks) && analysis.subtasks.length > 0) {
+        // Sort subtasks by priority (highest first)
+        const sortedSubtasks = [...analysis.subtasks].sort((a, b) => 
+          (b.priority || 0) - (a.priority || 0)
+        );
+        
+        // Save the keywords for display in the UI
+        searchProgress.searchKeywords = sortedSubtasks.map(task => task.keywords).join(' | ');
+        
+        // Set total subtasks count for progress tracking
+        searchProgress.totalSubtasks = sortedSubtasks.length;
+        searchProgress.currentSubtask = 0;
+        
+        // Execute searches for each subtask (up to 3 top priority tasks)
+        const MAX_SUBTASKS = 3;
+        const subtasksToSearch = sortedSubtasks.slice(0, MAX_SUBTASKS);
+        
+        for (let i = 0; i < subtasksToSearch.length; i++) {
+          const subtask = subtasksToSearch[i];
+          searchProgress.currentSubtask = i + 1;
+          searchProgress.currentKeywords = subtask.keywords;
           
-          // Get keyword from highest priority subtask
-          const highestPrioritySubtask = sortedSubtasks[0];
-          
-          if (highestPrioritySubtask && typeof highestPrioritySubtask.keywords === 'string' && 
-              highestPrioritySubtask.keywords.trim()) {
-            searchQuery = highestPrioritySubtask.keywords.trim();
-            
-            // Save the keywords for display in the UI
-            searchProgress.searchKeywords = searchQuery;
+          if (subtask && typeof subtask.keywords === 'string' && subtask.keywords.trim()) {
+            let searchQuery = subtask.keywords.trim();
             
             // Add freshness signal if needed
             if (analysis.considerFreshness) {
               const currentYear = new Date().getFullYear();
-              
-              // Only add year if it doesn't already include recent time indicators
               const hasTimeIndicator = /202[3-4]|recent|latest|current|today|yesterday|week|month/i.test(searchQuery);
-              
               if (!hasTimeIndicator) {
                 searchQuery += ` ${currentYear}`;
               }
             }
             
-            console.log('[Chat] Using keywords from subtask:', searchQuery);
-          } else {
-            console.log('[Chat] No valid keywords in highest priority subtask, falling back to original query');
+            console.log(`[Chat] Searching subtask ${i+1}/${subtasksToSearch.length}: ${searchQuery}`);
+            try {
+              const subtaskResults = await executeSearch(searchQuery);
+              
+              // Tag results with their source subtask for potential filtering/grouping later
+              const taggedResults = subtaskResults.results.map((result: any) => ({
+                ...result,
+                subtaskIndex: i,
+                subtaskQuestion: subtask.question
+              }));
+              
+              // Merge results
+              allResults.results = [...allResults.results, ...taggedResults];
+            } catch (searchError) {
+              console.error(`[Chat] Error searching subtask ${i+1}:`, searchError);
+              // Continue with other subtasks even if one fails
+            }
           }
-        } else {
-          console.log('[Chat] No subtasks found or search not required, using original query');
         }
-      } catch (extractError) {
-        console.error('[Chat] Error extracting keywords from analysis:', extractError);
-        // Fall back to original query on any extraction error
+        
+        // If no successful searches, fall back to original query
+        if (allResults.results.length === 0) {
+          console.log('[Chat] No results from subtasks, falling back to original query');
+          allResults = await executeSearch(query);
+        } else {
+          // Remove duplicates by URL
+          const uniqueUrls = new Set();
+          allResults.results = allResults.results.filter((result: any) => {
+            if (uniqueUrls.has(result.url)) {
+              return false;
+            }
+            uniqueUrls.add(result.url);
+            return true;
+          });
+          
+          console.log('[Chat] All subtask results:', allResults.results.length);
+          // Limit to top results to avoid overwhelming
+          const MAX_TOTAL_RESULTS = 45;
+          if (allResults.results.length > MAX_TOTAL_RESULTS) {
+            allResults.results = allResults.results.slice(0, MAX_TOTAL_RESULTS);
+          }
+        }
+      } else {
+        // No subtasks or search not required - fall back to original query
+        console.log('[Chat] No subtasks found, using original query');
+        allResults = await executeSearch(query);
       }
-
-      console.log('[Chat] Final search query:', searchQuery);
-      const encodedQuery = encodeURIComponent(searchQuery);
       
-      const searchResponse = await fetch(`/api/search?q=${encodedQuery}`);
-      if (!searchResponse.ok) {
-        throw new Error('Search failed');
-      }
-  
-      const results = await searchResponse.json();
       return {
-        ...results,
+        ...allResults,
         queryAnalysis: analysis
       };
   
     } catch (error) {
       console.error('[Chat] Search error:', error);
-      // 如果分析失败，回退到直接搜索原始查询
+      // Fall back to direct search with original query
       const encodedQuery = encodeURIComponent(query.trim());
       const response = await fetch(`/api/search?q=${encodedQuery}`);
       if (!response.ok) {
@@ -593,6 +641,8 @@ Return a JSON object with exactly these fields:
             .filter(Boolean)
             .join('\n\n');
 
+          console.log('[Chat] Formatted search results:', formattedResults);
+
           // 调试用户语言信息
           //console.log('[Chat] Session data:', data.session);
           //console.log('[Chat] User data:', data.session.user);
@@ -601,29 +651,27 @@ Return a JSON object with exactly these fields:
           console.log('[Chat] Detected user language:', userLang);
 
           const promptTemplate = {
-            zh: `你是一个有帮助的助手，可以访问最新的网络搜索结果。
-请基于搜索结果和部分链接内容，总结整理输入,输出语言为中文。
-保留数字的关键细节信息。
-使用markdown格式以提高可读性。
+            zh: `你是一个有帮助的助手，请基于前面提供的搜索结果和部分链接的文本，总结整理信息，输出语言为中文。
 
-要求：
-1. 整合这些搜索结果，不要包含特殊字符。
-2. 提供准确和最新的信息
-3. 使用markdown格式以提高可读性
-4. 如果搜索结果看起来过时或不相关，请说明
-5. 引用具体信息时包含相关带有来源(可点击)编号 [1], [2] 等`,
+请做到以下几点：
+1. 删除广告、页面导航等不相关信息
+2. 保留数字的关键细节信息
+3. 如果是财报，请从专业投资者角度仔细分析全部财务数据和管理层信息，给出详细分析结果
+4. 使用markdown格式以提高可读性
+5. 去掉所有不相关的信息，整合搜索结果，不要包含特殊字符
+6. 引用具体信息时包含相关来源编号，如[1]、[2]等（可点击）
+7. 严格遵守中文输出的要求`,
 
-            en: `You are a helpful assistant with access to the latest web search results.
-Please summarize and organize the input based on search results and partial content from links. The output language should be English.
-Retain key numerical details.
-Use Markdown formatting to enhance readability..
+            en: `You are a helpful assistant. Please summarize and organize the information based on the search results and partial link texts provided earlier. Output should be in English.
 
-Instructions:
-1. Synthesize the information from these search results,do not include special characters.
-2. Provide accurate and up-to-date information
-3. Use markdown formatting for better readability
-4. If search results seem outdated or irrelevant, mention this
-5. Include relevant clickable source  numbers [1], [2], etc. when citing specific information`
+Please ensure the following:
+1. Remove advertisements, page navigation, and other irrelevant information
+2. Preserve key numerical details
+3. For financial reports, provide detailed analysis from a professional investor's perspective, thoroughly examining all financial data and management information
+4. Use markdown format to improve readability
+5. Remove all irrelevant information, integrate the search results, and avoid special characters
+6. When citing specific information, include relevant source numbers such as [1], [2], etc. (clickable)
+7. Strictly adhere to the requirement of outputting in English`
           };
 
           content = `${promptTemplate[userLang] || promptTemplate.en}
