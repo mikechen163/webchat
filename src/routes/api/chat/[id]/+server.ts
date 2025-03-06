@@ -116,10 +116,10 @@ export async function POST({ request, params, fetch }) {  // Add fetch to destru
     
     // 检查是否是系统指令
     const isSystemPrompt = content.startsWith('Analyze these search results for the query') ||
-                          content.startsWith('你是一个有帮助的助手，可以访问最新的网络搜索结果你是一个有帮助的助手，请基于前面提供的搜索结果') ||
+                          content.startsWith('你是一个有帮助的助手，请基于前面提供的搜索') ||
                           content.startsWith('Analyze this query and extract search') ||
                           content.startsWith('Analyze this query and determine the search strategy') ||
-                          content.startsWith('You are a helpful assistant with access to the latest web search resultsYou are a helpful assistant. Please summarize and organize the information based');
+                          content.startsWith('You are a helpful assistant. Please summarize and organize the information based on the search');
 
     // 获取指定的模型配置
     let modelConfig = await prisma.modelConfig.findFirst({

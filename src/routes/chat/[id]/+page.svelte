@@ -643,7 +643,7 @@ Return a JSON object with exactly these fields:
             .filter(Boolean)
             .join('\n\n');
 
-          console.log('[Chat] Formatted search results:', formattedResults);
+          //console.log('[Chat] Formatted search results:', formattedResults);
 
           // 调试用户语言信息
           //console.log('[Chat] Session data:', data.session);
