@@ -288,7 +288,7 @@ Important: Keep the response concise and ensure it's valid JSON.`;
 //     }
 
 
-  async function performWebSearch(query: string) {
+  async function performWebSearch(query: string, conversationHistory: any[] = []) {
     console.log('[Chat] Initial search query:', query);
     let searchAttempts = 0;
     const MAX_SEARCH_ATTEMPTS = 1;
@@ -301,14 +301,17 @@ Important: Keep the response concise and ensure it's valid JSON.`;
       searchKeywords: "",
       searchResults: null,
       analysis: null,
-      error: null
+      error: null,
+      currentSubtask: 0,
+      totalSubtasks: 0,
+      currentKeywords: ""
     };
     showSearchProgress = true;
     
     while (searchAttempts < MAX_SEARCH_ATTEMPTS) {
       try {
-        // 1. Initial search
-        const searchResults = await performInitialSearch(query);
+        // 1. Initial search with conversation history
+        const searchResults = await performInitialSearch(query, conversationHistory);
         //console.log('[Chat] Initial search results:', searchResults);
         
         // Update searchProgress with search results
@@ -363,7 +366,7 @@ Important: Keep the response concise and ensure it's valid JSON.`;
       }
     }
 
-    return await performInitialSearch(query);
+    return await performInitialSearch(query, conversationHistory);
   }
 
   // Add this helper function for executing a single search
@@ -378,14 +381,22 @@ Important: Keep the response concise and ensure it's valid JSON.`;
   }
 
   // Helper function for the actual search API call
-  async function performInitialSearch(query: string) {
+  async function performInitialSearch(query: string, conversationHistory: any[] = []) {
     try {
       searchProgress.status = "analyzing";
       searchProgress.query = query;
       
+      // Extract recent conversation context (limit to last few messages to avoid token limits)
+      const recentMessages = conversationHistory.slice(-6).map(msg => 
+        `${msg.role}: ${msg.content.substring(0, 500)}${msg.content.length > 500 ? '...' : ''}`
+      ).join('\n\n');
+      
       // 1. 分析用户意图和获取关键词
       const analysisPrompt = `Analyze this query and determine the search strategy:
 Query: "${query}"
+
+Recent conversation context:
+${recentMessages}
 
 1. keywords should be in English (unless specifically about Chinese topics)  
 2. Today is ${new Date().toISOString().split('T')[0]} , consider freshness
@@ -629,7 +640,8 @@ Return a JSON object with exactly these fields:
       
       if (webSearchMode) {
         try {
-          const searchResults = await performWebSearch(userMessage);
+          // Pass both the user message and conversation history
+          const searchResults = await performWebSearch(userMessage, messages);
           
           //console.log('[Chat] Search results:', searchResults);
 
