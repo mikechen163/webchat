@@ -8,10 +8,11 @@
   import { toast } from "$lib/components/ui/toast";
   import { onDestroy } from "svelte";
   import { sessionsStore } from '$lib/stores/sessions';
-  import { ArrowUp, Trash2, Search, X } from "lucide-svelte";
+  import { ArrowUp, Trash2, Search, X, Info } from "lucide-svelte";
   import ModelSelector from "$lib/components/ModelSelector.svelte";
   import { selectedModel } from "$lib/stores/selectedModel";
   import { browser } from "$app/environment";
+  import SearchProgressDisplay from "$lib/components/SearchProgressDisplay.svelte";
 
   export let data;
   let messages = data.messages || [];
@@ -97,6 +98,17 @@
   // 修改工具栏状态控制
   let showTools = false;
   let webSearchMode = false;
+  
+  // Add search progress state
+  let showSearchProgress = false;
+  let searchProgress = {
+    status: "idle" as "idle" | "analyzing" | "searching" | "fetching" | "complete" | "error",
+    query: "",
+    searchKeywords: "",
+    searchResults: null as any[] | null,
+    analysis: null as any | null,
+    error: null as string | null
+  };
 
   // 修改工具选项, 直接使用let声明以确保状态变化会触发响应
   let tools = [
@@ -115,6 +127,8 @@
   $: console.log('Current webSearchMode:', webSearchMode); // 响应式调试日志
 
   async function analyzeSearchResults(results: any[], originalQuery: string) {
+    searchProgress.status = "analyzing";
+    
     const analysisPrompt = `Analyze these search results for the query: "${originalQuery}"
 Results: ${JSON.stringify(results, null, 2)}
 
@@ -186,9 +200,15 @@ Important: Keep the response concise and ensure it's valid JSON.`;
     try {
       const cleanedText = cleanJson(analysisText);
       console.log('[Chat] Cleaned JSON text:', cleanedText);
-      return JSON.parse(cleanedText);
+      const analysis = JSON.parse(cleanedText);
+      
+      // Update search progress with analysis results
+      searchProgress.analysis = analysis;
+      return analysis;
     } catch (error) {
       console.error('[Chat] JSON parse error:', error, 'Raw text:', analysisText);
+      searchProgress.error = "Failed to parse analysis";
+      
       // Return a default analysis if parsing fails
       return {
         completeness: 50,
@@ -204,6 +224,8 @@ Important: Keep the response concise and ensure it's valid JSON.`;
     async function fetchUrlContent(url: string) {
       try {
         console.log('[Chat] Fetching content from URL:', url);
+        searchProgress.status = "fetching";
+        
         const response = await fetch(`/api/fetch-url?url=${encodeURIComponent(url)}`);
         if (!response.ok) throw new Error('URL fetch failed');
         const content = await response.json();
@@ -262,11 +284,26 @@ Important: Keep the response concise and ensure it's valid JSON.`;
     const MAX_SEARCH_ATTEMPTS = 1;
     const MAX_URL_FETCHES = 2;
     
+    // Reset and show search progress
+    searchProgress = {
+      status: "analyzing",
+      query: query,
+      searchKeywords: "",
+      searchResults: null,
+      analysis: null,
+      error: null
+    };
+    showSearchProgress = true;
+    
     while (searchAttempts < MAX_SEARCH_ATTEMPTS) {
       try {
         // 1. Initial search
         const searchResults = await performInitialSearch(query);
         console.log('[Chat] Initial search results:', searchResults);
+        
+        // Update searchProgress with search results
+        searchProgress.searchResults = searchResults.results;
+        searchProgress.status = "searching";
 
         // 2. Analyze search results
         const analysis = await analyzeSearchResults(searchResults.results, query);
@@ -286,6 +323,7 @@ Important: Keep the response concise and ensure it's valid JSON.`;
         }
 
         // Then fetch and add content for relevant URLs
+        searchProgress.status = "fetching";
         for (const url of analysis.relevantUrls.slice(0, MAX_URL_FETCHES)) {
           const content = await fetchUrlContent(url);
           if (content) {
@@ -297,6 +335,9 @@ Important: Keep the response concise and ensure it's valid JSON.`;
           }
         }
 
+        // Mark search as complete
+        searchProgress.status = "complete";
+        
         // Return combined results
         return {
           query,
@@ -306,6 +347,8 @@ Important: Keep the response concise and ensure it's valid JSON.`;
 
       } catch (error) {
         console.error('[Chat] Search optimization error:', error);
+        searchProgress.status = "error";
+        searchProgress.error = error.message;
         throw error;
       }
     }
@@ -381,6 +424,10 @@ Important: Keep the response concise and ensure it's valid JSON.`;
     };
 
     const analysis = JSON.parse(cleanJson(analysisText));
+      
+      // Update search progress with search keywords
+      searchProgress.searchKeywords = analysis.searchKeywords;
+      searchProgress.status = "searching";
 
     console.log('[Chat] Query analysis:', analysis);
 
@@ -682,6 +729,11 @@ ${formattedResults}
   function formatMessage(content: string) {
     return marked(content);
   }
+
+  // Function to toggle search progress visibility
+  function toggleSearchProgress() {
+    showSearchProgress = !showSearchProgress;
+  }
 </script>
 
 <svelte:head>
@@ -748,6 +800,14 @@ ${formattedResults}
       on:scroll={handleScroll}
     >
       <div class="w-full md:max-w-3xl lg:max-w-4xl mx-auto px-3 md:px-4 py-3 md:py-4 space-y-4">
+        <!-- Search Progress Display -->
+        {#if webSearchMode && showSearchProgress && searchProgress.status !== "idle"}
+          <SearchProgressDisplay 
+            searchProgress={searchProgress} 
+            onClose={() => showSearchProgress = false} 
+          />
+        {/if}
+        
         {#each messages as message (message.id)}
           <ChatBubble 
             role={message.role}
@@ -784,6 +844,20 @@ ${formattedResults}
               <span class="text-xs md:text-sm">{tool.label}</span>
             </button>
           {/each}
+          
+          <!-- Search progress toggle button -->
+          {#if webSearchMode && searchProgress.status !== "idle"}
+            <button 
+              class="px-2 md:px-3 py-1 md:py-1.5 rounded-full 
+                {showSearchProgress ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'} 
+                flex items-center gap-1 md:gap-1.5 whitespace-nowrap"
+              on:click={toggleSearchProgress}
+            >
+              <Info class="h-4 w-4" />
+              <span class="text-xs md:text-sm">Search Details</span>
+            </button>
+          {/if}
+          
           <div class="h-5 border-l border-gray-200 mx-1"></div>
           <ModelSelector showFullName={true} />
         </div>
