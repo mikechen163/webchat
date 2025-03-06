@@ -16,6 +16,8 @@ export async function GET({ locals }) {
     
     if (!userData) throw error(404, 'User not found');
     
+    console.log("Found user data:", userData);
+    
     // Extract only the fields we need for preferences
     return json({
       defaultModel: userData.defaultModel || null,
@@ -50,37 +52,57 @@ export async function POST({ request, locals }) {
   try {
     const { defaultModel, searchModel, theme, language, displayName } = await request.json();
     
-    // Use updateMany instead of update to avoid errors if fields don't exist yet
-    // It will silently skip fields that don't exist
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        // Only include fields that exist in the schema
-        ...(defaultModel !== undefined && { defaultModel }),
-        ...(searchModel !== undefined && { searchModel }),
-        theme,
-        language,
-        name: displayName // Map displayName to name field in User model
-      }
-    });
+    console.log("Received preferences to save:", { defaultModel, searchModel, theme, language, displayName });
+    console.log("For user:", user.id);
     
-    return json({
-      defaultModel: updatedUser.defaultModel || null,
-      searchModel: updatedUser.searchModel || null,
-      theme: updatedUser.theme,
-      language: updatedUser.language,
-      displayName: updatedUser.name
-    });
+    // Create a data object with all fields we want to update
+    const updateData = {};
+    
+    // Only add fields that are provided in the request
+    if (defaultModel !== undefined) updateData.defaultModel = defaultModel;
+    if (searchModel !== undefined) updateData.searchModel = searchModel;
+    if (theme !== undefined) updateData.theme = theme;
+    if (language !== undefined) updateData.language = language;
+    if (displayName !== undefined) updateData.name = displayName; // Map displayName to name field
+    
+    console.log("Update data:", updateData);
+    
+    try {
+      const updatedUser = await prisma.user.update({
+        where: { id: user.id },
+        data: updateData
+      });
+      
+      console.log("Updated user:", updatedUser);
+      
+      return json({
+        success: true,
+        defaultModel: updatedUser.defaultModel,
+        searchModel: updatedUser.searchModel,
+        theme: updatedUser.theme,
+        language: updatedUser.language,
+        displayName: updatedUser.name
+      });
+    } catch (updateError) {
+      console.error("Failed to update user:", updateError);
+      
+      // If fields don't exist, we need to apply the migration first
+      if (updateError.message && updateError.message.includes('Unknown field')) {
+        return json({ 
+          success: false, 
+          message: 'Database schema needs to be updated. Run migration first.',
+          error: updateError.message
+        }, { status: 400 });
+      }
+      
+      throw updateError;
+    }
   } catch (err) {
     console.error('Error saving user preferences:', err);
-    // If the error is about missing fields, acknowledge the request but log the issue
-    if (err.message && err.message.includes('Unknown field')) {
-      console.log('Migration for User model may not be complete. Some preferences were not saved.');
-      return json({ 
-        success: false, 
-        reason: 'Some preferences could not be saved. Database schema may need to be updated.'
-      });
-    }
-    throw error(500, 'Failed to save preferences');
+    return json({ 
+      success: false, 
+      message: 'Failed to save preferences',
+      error: err.message 
+    }, { status: 500 });
   }
 }
