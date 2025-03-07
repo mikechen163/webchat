@@ -70,7 +70,43 @@ export function OPTIONS() {
   });
 }
 
-async function generateTitle(messages: any[]) {
+async function generateTitle(messages: any[], locals: any) {
+  // Get the user and their preferences
+  const { user } = locals.auth || {};
+  let modelConfig;
+  
+  if (user) {
+    try {
+      // Get user's default model preference
+      const userData = await prisma.user.findUnique({
+        where: { id: user.id }
+      });
+      
+      if (userData?.defaultModel) {
+        // Find the model configuration for the user's preferred model
+        modelConfig = await prisma.modelConfig.findFirst({
+          where: { 
+            id: userData.defaultModel,
+            enabled: true 
+          }
+        });
+      }
+    } catch (e) {
+      console.log('Could not access user default model, using system default instead');
+    }
+  }
+  
+  // If no user preference or model not found, fall back to system default
+  if (!modelConfig) {
+    modelConfig = await prisma.modelConfig.findFirst({
+      where: { enabled: true }
+    });
+    
+    if (!modelConfig) {
+      throw new Error('No enabled model configuration found for title generation');
+    }
+  }
+  
   const prompt = `### Task:
 Generate a concise, 3-5 word title with an emoji summarizing the chat history.
 ### Guidelines:
@@ -83,14 +119,14 @@ JSON format: { "title": "your concise title here" }
 ### Chat History:
 ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`;
 
-  const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+  const response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Authorization': `Bearer ${modelConfig.apiKey}`,
     },
     body: JSON.stringify({
-      model: OPENAI_MODEL,
+      model: modelConfig.model,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
     }),
@@ -111,7 +147,7 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`;
 
 export async function POST({ request, params, fetch, locals }) {
   try {
-    const { content, modelId, temperature = 0.7, max_tokens, isSearchAnalysis = false } = await request.json();
+    const { content, modelId, temperature = 0.7, max_tokens,   isSearchAnalysis = false } = await request.json();
     
     // 检查是否是系统指令
     const isSystemPrompt = content.startsWith('Analyze these search results for the query') ||

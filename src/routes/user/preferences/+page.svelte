@@ -85,6 +85,8 @@
   // Save user preferences
   async function savePreferences() {
     try {
+     // console.log("Saving preferences:", { defaultModel, searchModel, theme: preferredTheme, language: preferredLanguage, displayName });
+      
       const response = await fetch("/api/user/preferences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -97,6 +99,9 @@
         })
       });
       
+      //const result = await response.json();
+      //console.log("Save response:", result);
+      
       if (response.ok) {
         toast({
           title: t('userPreferences.saveSuccess', currentLang),
@@ -104,9 +109,10 @@
           type: "success"
         });
       } else {
-        throw new Error("Failed to save preferences");
+        throw new Error(result.message || "Failed to save preferences");
       }
     } catch (err) {
+      console.error("Error saving preferences:", err);
       toast({
         title: t('userPreferences.saveError', currentLang),
         description: String(err),
@@ -267,7 +273,7 @@
     {/if}
 
     <div class="pt-4 flex justify-end">
-      <Button type="submit" class="px-6">Save Preferences</Button>
+      <Button type="submit" class="px-6" >Save Preferences</Button>
     </div>
   </form>
 </div>

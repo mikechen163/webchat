@@ -16,7 +16,7 @@ export async function GET({ locals }) {
     
     if (!userData) throw error(404, 'User not found');
     
-    console.log("Found user data:", userData);
+    //console.log("Found user data:", userData);
     
     // Extract only the fields we need for preferences
     return json({
@@ -73,7 +73,7 @@ export async function POST({ request, locals }) {
         data: updateData
       });
       
-      console.log("Updated user:", updatedUser);
+      //console.log("Updated user:", updatedUser);
       
       return json({
         success: true,

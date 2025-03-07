@@ -34,7 +34,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   if (!session) throw error(404, "Session not found");
 
   // 调试日志
-  console.log('Loaded session with user language:', session.user?.language);
+  //console.log('Loaded session with user language:', session.user?.language);
 
   return {
     session,
