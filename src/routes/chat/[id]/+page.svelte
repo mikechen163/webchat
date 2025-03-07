@@ -391,6 +391,8 @@ Important: Keep the response concise and ensure it's valid JSON.`;
       const recentMessages = conversationHistory.slice(-6).map(msg => 
         `${msg.role}: ${msg.content.substring(0, 500)}${msg.content.length > 500 ? '...' : ''}`
       ).join('\n\n');
+
+      //console.log('[Chat] Recent conversation context:', recentMessages);
       
       // 1. 分析用户意图和获取关键词
       const analysisPrompt = `Analyze this query and determine the search strategy:
@@ -401,8 +403,9 @@ ${recentMessages}
 
 1. if  this is a topic about China or Chinese culture, people,companies etc, use Chinese for keywords, in other cases, use English for keywords.  
 2. Today is ${new Date().toISOString().split('T')[0]} , consider freshness
-3. keywords should not be within 3 words
-4. use official ir website for financial information , ignore sites like businesswire.com reuters.com
+3. Consider history context when generating keywords.
+4. keywords should  be within 3 words
+5. use official ir website for financial information , ignore sites like businesswire.com reuters.com
 
 Return a JSON object with exactly these fields:
 {
