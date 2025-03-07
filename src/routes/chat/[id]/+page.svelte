@@ -399,10 +399,10 @@ Query: "${query}"
 Recent conversation context:
 ${recentMessages}
 
-1. keywords should be in English (unless this is a topic about China or Chinese culture, people,companies etc, in that case use Chinese)  
+1. if  this is a topic about China or Chinese culture, people,companies etc, use Chinese for keywords, in other cases, use English for keywords.  
 2. Today is ${new Date().toISOString().split('T')[0]} , consider freshness
-3. keywords should not be within 5 words
-4. use official ir website for financial information , then use other sources like msn etc, ignore sites like businesswire.com reuters.com
+3. keywords should not be within 3 words
+4. use official ir website for financial information , ignore sites like businesswire.com reuters.com
 
 Return a JSON object with exactly these fields:
 {
@@ -668,6 +668,12 @@ Return a JSON object with exactly these fields:
           const userLang = data.session.user?.language || 'en';
           console.log('[Chat] Detected user language:', userLang);
 
+          // Extract conversation context for the AI to understand user's intent better
+          const conversationContext = messages
+            .slice(-8, -1) // Get recent messages excluding the latest user message which is already handled
+            .map(msg => `${msg.role}: ${msg.content.substring(0, 300)}${msg.content.length > 300 ? '...' : ''}`)
+            .join('\n\n');
+
           const promptTemplate = {
             zh: `你是一个有帮助的助手，请基于前面提供的搜索结果和部分链接的文本，总结整理信息，输出语言为中文。
 
@@ -684,7 +690,7 @@ Return a JSON object with exactly these fields:
 
 Please ensure the following:
 1. Remove advertisements, page navigation, and other irrelevant information
-2. After the “Full content from” is  the original text. Please read the original text carefully, extract key information, and retain key numerical details.
+2. After the "Full content from" is  the original text. Please read the original text carefully, extract key information, and retain key numerical details.
 3. For financial reports, provide detailed analysis from a professional investor's perspective, thoroughly examining all financial data and management information
 4. Use markdown format to improve readability
 5. Remove all irrelevant information, integrate the search results, and avoid special characters
@@ -693,6 +699,11 @@ Please ensure the following:
           };
 
           content = `${promptTemplate[userLang] || promptTemplate.en}
+
+<conversation_history>
+${conversationContext}
+</conversation_history>
+
 <user_input>
 ${userMessage}
 </user_input>
