@@ -54,3 +54,30 @@
     </div>
   </div>
 </div>
+
+<style>
+  /* Style for code blocks with black background */
+  :global(.prose pre) {
+    background-color: #000 !important;
+    border-radius: 6px;
+    padding: 1em;
+    overflow-x: auto;
+  }
+  
+  :global(.prose pre code) {
+    color: #f8f8f2 !important;
+    background-color: transparent !important;
+    padding: 0;
+  }
+  
+  /* Style for inline code */
+  :global(.prose code:not(pre code)) {
+    background-color: #000 !important;
+    color: #f8f8f2 !important;
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-size: 0.9em;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+</style>
