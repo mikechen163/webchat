@@ -614,6 +614,27 @@ Return a JSON object with exactly these fields:
 
   let abortController: AbortController | null = null;
 
+  // Add function to fetch user preferences
+  async function getUserPreferences() {
+    try {
+      const response = await fetch("/api/user/preferences");
+      if (response.ok) {
+        const prefs = await response.json();
+        return {
+          language: prefs.language || 'en',
+          defaultModel: prefs.defaultModel,
+          searchModel: prefs.searchModel,
+          theme: prefs.theme,
+          displayName: prefs.displayName
+        };
+      }
+    } catch (error) {
+      console.error("[Chat] Error fetching user preferences:", error);
+    }
+    
+    return { language: 'en' }; // Default fallback
+  }
+
   async function handleSubmit() {
     if (!messageInput.trim() || sending) return;
     
@@ -662,14 +683,23 @@ Return a JSON object with exactly these fields:
             .filter(Boolean)
             .join('\n\n');
 
-          //console.log('[Chat] Formatted search results:', formattedResults);
-
-          // 调试用户语言信息
-          //console.log('[Chat] Session data:', data.session);
-          console.log('[Chat] User data:', data.session.user);
+          // Fetch user preferences including language
+          const userPrefs = await getUserPreferences();
+          console.log('[Chat] User preferences:', userPrefs);
           
-          const userLang = data.session.user?.language || 'en';
-          console.log('[Chat] Detected user language:', userLang);
+          // Use the language from preferences, with fallbacks
+          let userLang = userPrefs.language || 'en';
+          
+          // If no preference is set, detect from title as last resort
+          if (userLang === 'en' && data.session?.title) {
+            const hasChinese = /[\u4e00-\u9fff]/.test(data.session.title);
+            if (hasChinese) {
+              userLang = 'zh';
+              console.log('[Chat] Language detected from title: Chinese');
+            }
+          }
+          
+          console.log('[Chat] Using language for response:', userLang);
 
           // Extract conversation context for the AI to understand user's intent better
           const conversationContext = messages
