@@ -133,7 +133,7 @@
     searchProgress.status = "analyzing";
     
     const analysisPrompt = `Analyze these search results for the query: "${originalQuery}"
-Results: ${JSON.stringify(results, null, 2)}
+
 
 1 Use official website for priority.
 2 For relevantUrls, think which one is more relevant to the query and in the first 3 place.
@@ -149,6 +149,8 @@ Evaluate and return a JSON object with exactly these fields:
   "relevantUrls": string[],
   "rationale": string (keep it under 100 words)
 }
+
+Results: ${JSON.stringify(results, null, 2)}
 
 Important: Keep the response concise and ensure it's valid JSON.`;
 
@@ -398,8 +400,6 @@ Important: Keep the response concise and ensure it's valid JSON.`;
       const analysisPrompt = `Analyze this query and determine the search strategy:
 Query: "${query}"
 
-Recent conversation context:
-${recentMessages}
 
 1. if  this is a topic about China or Chinese culture, people,companies etc, use Chinese for keywords, in other cases, use English for keywords.  
 2. Today is ${new Date().toISOString().split('T')[0]} , consider freshness
@@ -420,7 +420,15 @@ Return a JSON object with exactly these fields:
   ],
   "considerFreshness": boolean,  // true if recent information is important 
   "considerCompleteness": boolean // true if comprehensive information is important
-}`;
+}
+  
+Recent conversation context:
+${recentMessages}
+
+
+`;
+
+  console.log('[Chat] Analysis prompt:', analysisPrompt);
   
       const response = await fetch(`/api/chat/${$page.params.id}`, {
         method: "POST",
