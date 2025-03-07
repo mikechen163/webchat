@@ -63,10 +63,11 @@ Generate a concise, 3-5 word title with an emoji summarizing the chat history.
 ### Guidelines:
 - The title should clearly represent the main theme or subject of the conversation.
 - Use emojis that enhance understanding of the topic, but avoid quotation marks or special formatting.
--  Using the language same as  user input language
+- Use the same language as the user input language.
 - Prioritize accuracy over excessive creativity; keep it clear and simple.
 ### Output:
-JSON format: { "title": "your concise title here" }
+Respond ONLY with a raw JSON object in this exact format: { "title": "your concise title here" }
+Do NOT include any markdown formatting, code blocks, or the word "json" in your response.
 ### Chat History:
 ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`;
 
@@ -80,7 +81,8 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`;
         model: modelConfig.model,
         messages: [{ role: 'user', content: prompt }],
         temperature: modelConfig.temperature,
-        max_tokens: 100
+        max_tokens: 100,
+        response_format: { type: "json_object" } // Add structured response format if API supports it
       }),
     });
 

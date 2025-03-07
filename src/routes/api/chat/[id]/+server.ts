@@ -128,7 +128,7 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`;
     body: JSON.stringify({
       model: modelConfig.model,
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
+      temperature: 0.0,
     }),
   });
 
