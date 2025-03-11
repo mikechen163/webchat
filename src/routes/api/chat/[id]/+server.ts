@@ -362,9 +362,7 @@ export async function POST({ request, params, fetch, locals }) {
                   const jsonStr = trimmedLine.slice(6);
                  
                    const json = JSON.parse(jsonStr);
-
-
-
+    
                   if (json.choices?.[0]?.delta?.reasoning_content) {
                    // console.log('reasoning_content:',reason_content_flag, json.choices[0].delta.reasoning_content);
                     if (!reason_content_flag) {
@@ -374,13 +372,25 @@ export async function POST({ request, params, fetch, locals }) {
                       fcontent =  json.choices[0].delta.reasoning_content;
                     }
                   } else {
-                     fcontent = json.choices?.[0]?.delta?.content || '';
+
+                    if (json.choices?.[0]?.delta?.reasoning) {
+                      // console.log('reasoning:',reason_content_flag, json.choices[0].delta.reasoning);
+                       if (!reason_content_flag) {
+                         reason_content_flag = true;
+                         fcontent = '<think>' + json.choices[0].delta.reasoning;
+                       } else {
+                         fcontent =  json.choices[0].delta.reasoning;
+                       }
+                      } else {
+
+                                          fcontent = json.choices?.[0]?.delta?.content || '';
                     // console.log('content:',reason_content_flag, fcontent);
                     fullAssistantMessage += fcontent;
                      if (fcontent && reason_content_flag) {
                       fcontent = '</think> <br>' + fcontent;
                       reason_content_flag = false;
                     } 
+                  }
 
 
                   }

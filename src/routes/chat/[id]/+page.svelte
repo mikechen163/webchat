@@ -339,17 +339,17 @@ Important: Keep the response concise and ensure it's valid JSON.`;
         }
 
         // Then fetch and add content for relevant URLs
-        // searchProgress.status = "fetching";
-        // for (const url of analysis.relevantUrls.slice(0, MAX_URL_FETCHES)) {
-        //   const content = await fetchUrlContent(url);
-        //   if (content) {
-        //     enhancedResults.push({
-        //       type: 'urlContent',
-        //       url: url,
-        //       content: content
-        //     });
-        //   }
-        // }
+        searchProgress.status = "fetching";
+        for (const url of analysis.relevantUrls.slice(0, MAX_URL_FETCHES)) {
+          const content = await fetchUrlContent(url);
+          if (content) {
+            enhancedResults.push({
+              type: 'urlContent',
+              url: url,
+              content: content
+            });
+          }
+        }
 
         // Mark search as complete
         searchProgress.status = "complete";
@@ -724,7 +724,7 @@ ${recentMessages}
 3. 如果是财报，请从专业投资者角度仔细分析全部财务数据和管理层信息，给出详细分析结果
 4. 使用markdown格式以提高可读性
 5. 去掉所有不相关的信息，整合搜索结果，不要包含特殊字符
-6. 引用具体信息时包含相关来源编号，如[1]、[2]等（可点击）
+6. 引用具体信息时包含相关来源编号，如[1]、[2]等（每个编号给出title,用户可以点击对应的url ）
 7. 严格遵守中文输出的要求`,
 
             en: `You are a helpful assistant. Please summarize and organize the information based on the search results and partial link texts provided earlier. Output should be in English.
@@ -735,7 +735,7 @@ Please ensure the following:
 3. For financial reports, provide detailed analysis from a professional investor's perspective, thoroughly examining all financial data and management information
 4. Use markdown format to improve readability
 5. Remove all irrelevant information, integrate the search results, and avoid special characters
-6. When citing specific information, include relevant source numbers such as [1], [2], etc. (clickable)
+6. When citing specific information, include relevant source numbers such as [1], [2], etc. (for each item, list title, and users can click on the corresponding URL) 
 7. Strictly adhere to the requirement of outputting in English`
           };
 
