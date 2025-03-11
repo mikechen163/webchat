@@ -257,6 +257,11 @@ export async function POST({ request, params, fetch, locals }) {
 
     const messages = [...history, { role: 'user', content }];
     let fullAssistantMessage = '';
+    let fullReasoningContent = '';
+    let reason_content_flag = false;
+    let fcontent = '';
+
+
     
     
     console.log('Making API request:', {
@@ -342,12 +347,57 @@ export async function POST({ request, params, fetch, locals }) {
               if (trimmedLine.startsWith('data: ')) {
                 try {
                   const jsonStr = trimmedLine.slice(6);
-                  const json = JSON.parse(jsonStr);
-                  const content = json.choices?.[0]?.delta?.content || '';
-                  if (content) {
-                    fullAssistantMessage += content;
-                    controller.enqueue(content);
+                 
+                  
+
+                    const json = JSON.parse(jsonStr);
+
+
+                    // // Track reasoning content separately
+                    // if (json.choices?.[0]?.delta?.reasoning_content) {
+                    //   // If reasoning content exists, accumulate it
+                    //   fullReasoningContent = (fullReasoningContent || '') + json.choices[0].delta.reasoning_content;
+                    // } else if (fullReasoningContent && json.choices?.[0]?.delta?.reasoning_content === null) {
+                    //   // When reasoning_content becomes null and we have accumulated content,
+                    //   // wrap it and add it to the main content
+                    //   json.choices[0].delta.content = `<think>${fullReasoningContent}</think>\n`;
+                    //   fullReasoningContent = ''; // Reset for next potential reasoning block
+                    // }
+                 
+                 // const content = json.choices?.[0]?.delta?.content || '';
+
+                
+
+                  if (json.choices?.[0]?.delta?.reasoning_content) {
+                   // console.log('reasoning_content:',reason_content_flag, json.choices[0].delta.reasoning_content);
+                    if (!reason_content_flag) {
+                      reason_content_flag = true;
+                      fcontent = '<think>' + json.choices[0].delta.reasoning_content;
+                    } else {
+                      fcontent =  json.choices[0].delta.reasoning_content;
+                    }
+                  } else {
+                     fcontent = json.choices?.[0]?.delta?.content || '';
+                    // console.log('content:',reason_content_flag, fcontent);
+                     if (fcontent && reason_content_flag) {
+                      fcontent = '</think> <br>' + fcontent;
+                      reason_content_flag = false;
+                    } 
+
+
                   }
+
+                 // console.log('fcontent:', fcontent);
+                  //fullAssistantMessage += fcontent;
+                 
+                  controller.enqueue(fcontent);
+
+                  // const content = json.choices?.[0]?.delta?.content || '';
+
+                  // if (content) {
+                  //   fullAssistantMessage += content;
+                  //   controller.enqueue(content);
+                  // }
                 } catch (error) {
                   console.warn('JSON parse error:', { line: trimmedLine, error });
                   continue;

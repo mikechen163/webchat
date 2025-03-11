@@ -794,7 +794,7 @@ ${formattedResults}
           
           const chunk = new TextDecoder().decode(value);
           assistantResponse += chunk;
-          
+                   
           messages = messages.map(msg => {
             if (msg.id === tempAssistantMsgId) {
               return { ...msg, content: assistantResponse };
