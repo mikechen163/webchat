@@ -304,16 +304,29 @@ export async function POST({ request, params, fetch, locals }) {
             const { done, value } = await reader.read();
             if (done) {
               // 只有非系统指令且不是JSON响应时才保存assistant消息
-              //console.log('Saving assistant message:', fullAssistantMessage);
-              if ( !fullAssistantMessage.includes('"completeness":') 
-                &&  !fullAssistantMessage.includes('"requiresSearch":')) {
-                await prisma.message.create({
-                  data: {
-                    sessionId: params.id,
-                    role: "assistant",
-                    content: fullAssistantMessage
-                  }
-                });
+             // console.log('Saving assistant message:', fullAssistantMessage);
+              
+                // Remove <think>...</think> content before saving
+                const filteredMessage = fullAssistantMessage.replace(/<think>.*?<\/think>/g, '');
+                
+                if (!filteredMessage.includes('"completeness":') && !filteredMessage.includes('"requiresSearch":')) {
+                  await prisma.message.create({
+                    data: {
+                      sessionId: params.id,
+                      role: "assistant",
+                      content: filteredMessage
+                    }
+                  });
+              
+              // if ( !fullAssistantMessage.includes('"completeness":') 
+              //   &&  !fullAssistantMessage.includes('"requiresSearch":')) {
+              //   await prisma.message.create({
+              //     data: {
+              //       sessionId: params.id,
+              //       role: "assistant",
+              //       content: fullAssistantMessage
+              //     }
+              //   });
 
                 // 检查是否需要生成标题
                 const messageCount = await prisma.message.count({
@@ -348,25 +361,9 @@ export async function POST({ request, params, fetch, locals }) {
                 try {
                   const jsonStr = trimmedLine.slice(6);
                  
-                  
-
-                    const json = JSON.parse(jsonStr);
+                   const json = JSON.parse(jsonStr);
 
 
-                    // // Track reasoning content separately
-                    // if (json.choices?.[0]?.delta?.reasoning_content) {
-                    //   // If reasoning content exists, accumulate it
-                    //   fullReasoningContent = (fullReasoningContent || '') + json.choices[0].delta.reasoning_content;
-                    // } else if (fullReasoningContent && json.choices?.[0]?.delta?.reasoning_content === null) {
-                    //   // When reasoning_content becomes null and we have accumulated content,
-                    //   // wrap it and add it to the main content
-                    //   json.choices[0].delta.content = `<think>${fullReasoningContent}</think>\n`;
-                    //   fullReasoningContent = ''; // Reset for next potential reasoning block
-                    // }
-                 
-                 // const content = json.choices?.[0]?.delta?.content || '';
-
-                
 
                   if (json.choices?.[0]?.delta?.reasoning_content) {
                    // console.log('reasoning_content:',reason_content_flag, json.choices[0].delta.reasoning_content);
@@ -379,6 +376,7 @@ export async function POST({ request, params, fetch, locals }) {
                   } else {
                      fcontent = json.choices?.[0]?.delta?.content || '';
                     // console.log('content:',reason_content_flag, fcontent);
+                    fullAssistantMessage += fcontent;
                      if (fcontent && reason_content_flag) {
                       fcontent = '</think> <br>' + fcontent;
                       reason_content_flag = false;

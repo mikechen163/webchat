@@ -339,17 +339,17 @@ Important: Keep the response concise and ensure it's valid JSON.`;
         }
 
         // Then fetch and add content for relevant URLs
-        searchProgress.status = "fetching";
-        for (const url of analysis.relevantUrls.slice(0, MAX_URL_FETCHES)) {
-          const content = await fetchUrlContent(url);
-          if (content) {
-            enhancedResults.push({
-              type: 'urlContent',
-              url: url,
-              content: content
-            });
-          }
-        }
+        // searchProgress.status = "fetching";
+        // for (const url of analysis.relevantUrls.slice(0, MAX_URL_FETCHES)) {
+        //   const content = await fetchUrlContent(url);
+        //   if (content) {
+        //     enhancedResults.push({
+        //       type: 'urlContent',
+        //       url: url,
+        //       content: content
+        //     });
+        //   }
+        // }
 
         // Mark search as complete
         searchProgress.status = "complete";
