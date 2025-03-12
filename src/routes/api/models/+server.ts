@@ -70,6 +70,14 @@ export async function POST({ request }) {
     if (!data.name || !data.model || !data.apiKey || !data.providerId) {
       throw error(400, 'Name, model, API key, and provider are required fields');
     }
+    // Combine provider name with model name
+    const provider = await prisma.provider.findUnique({
+      where: { id: data.providerId }
+    });
+    if (!provider) {
+      throw error(404, 'Provider not found');
+    }
+    data.name = `${provider.name}/${data.name}`;
     
     const model = await prisma.modelConfig.create({
       data: {
