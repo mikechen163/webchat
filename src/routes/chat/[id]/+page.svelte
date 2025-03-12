@@ -720,7 +720,7 @@ ${recentMessages}
 
 请做到以下几点：
 1. 删除广告、页面导航等不相关信息
-2. 完整的内容信息 以"Full content from"开头, 请仔细阅读原文,提取关键信息,保留关键数字细节.
+2. 请仔细阅读原文,提取关键信息,保留关键数字细节.
 3. 如果是财报，请从专业投资者角度仔细分析全部财务数据和管理层信息，给出详细分析结果
 4. 使用markdown格式以提高可读性
 5. 去掉所有不相关的信息，整合搜索结果，不要包含特殊字符
@@ -731,7 +731,7 @@ ${recentMessages}
 
 Please ensure the following:
 1. Remove advertisements, page navigation, and other irrelevant information
-2. After the "Full content from" is  the original text. Please read the original text carefully, extract key information, and retain key numerical details.
+2. Please read the original text carefully, extract key information, and retain key numerical details.
 3. For financial reports, provide detailed analysis from a professional investor's perspective, thoroughly examining all financial data and management information
 4. Use markdown format to improve readability
 5. Remove all irrelevant information, integrate the search results, and avoid special characters
@@ -762,6 +762,37 @@ ${formattedResults}
           );
           sending = false;
           return;
+        }
+      }
+
+      // Function to extract URLs from text
+      function extractUrls(text: string): string[] {
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        return text.match(urlRegex) || [];
+      }
+
+      // Process any URLs in user message before proceeding
+      const urls = extractUrls(userMessage);
+      if (urls.length > 0) {
+        // Fetch content from all URLs
+        const urlContents = await Promise.all(
+          urls.map(async (url) => {
+            const content = await fetchUrlContent(url);
+            return content ? { url, content } : null;
+          })
+        );
+
+        // Filter out failed fetches and format content
+        const validContents = urlContents
+          .filter((result): result is { url: string; content: any } => result !== null)
+          .map(({ url, content }) => 
+            `Content from URL (${url}):\n${content.title}\n${content.content}`
+          )
+          .join('\n\n');
+
+        // Append URL contents to the message if any were successfully fetched
+        if (validContents) {
+          content = `${content}\n\nAdditional URL content:\n${validContents}`;
         }
       }
 
