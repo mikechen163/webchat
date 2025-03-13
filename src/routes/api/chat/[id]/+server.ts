@@ -318,7 +318,10 @@ export async function POST({ request, params, fetch, locals }) {
             
             if (done) {
               // 只在流结束时发送一次最终的 token 计数
-              controller.enqueue(`\ndata: {"tokens": ${totalTokens}}\n\n`);
+              if (!isSystemPrompt) {
+                controller.enqueue(`\ndata: {"tokens": ${totalTokens}}\n\n`);
+              }
+              //controller.enqueue(`\ndata: {"tokens": ${totalTokens}}\n\n`);
               // 只有非系统指令且不是JSON响应时才保存assistant消息
               // console.log('Saving assistant message:', fullAssistantMessage);
               
@@ -373,6 +376,7 @@ export async function POST({ request, params, fetch, locals }) {
                     const content = json.choices[0].delta.content;
                     totalTokens += updateTokenCount(content);
                     currentMessage += content;
+                    fullAssistantMessage += content;
                     controller.enqueue(content);
                   }
                   
@@ -390,12 +394,16 @@ export async function POST({ request, params, fetch, locals }) {
                   }
 
                   // 每积累100个tokens就发送一次更新
-                  if (totalTokens % 100 === 0) {
+                  // Skip token updates for system prompts
+                  if (!isSystemPrompt && totalTokens % 100 === 0) {
                     controller.enqueue(`\ndata: {"tokens": ${totalTokens}}\n\n`);
                   }
+                  // if (totalTokens % 100 === 0) {
+                  //   controller.enqueue(`\ndata: {"tokens": ${totalTokens}}\n\n`);
+                  // }
 
                 } catch (error) {
-                  console.warn('JSON parse error:', { line: trimmedLine, error });
+                  //console.warn('JSON parse error:', { line: trimmedLine, error });
                   continue;
                 }
               }

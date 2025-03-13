@@ -409,7 +409,7 @@ Query: "${query}"
 
 1. if  this is a topic about China or Chinese culture, people,companies etc, use Chinese for keywords, in other cases, use English for keywords.  
 2. Today is ${new Date().toISOString().split('T')[0]} , consider freshness
-3. Consider history context when generating keywords.
+3. Consider <history> </history> context when generating keywords.
 4. keywords should  be within 3 words
 5. use official ir website for financial information , ignore sites like businesswire.com reuters.com
 
@@ -428,13 +428,13 @@ Return a JSON object with exactly these fields:
   "considerCompleteness": boolean // true if comprehensive information is important
 }
   
-Recent conversation context:
+<history>
 ${recentMessages}
-
+</history>
 
 `;
 
-  console.log('[Chat] Analysis prompt:', analysisPrompt);
+ // console.log('[Chat] Analysis prompt:', analysisPrompt);
   
       const response = await fetch(`/api/chat/${$page.params.id}`, {
         method: "POST",
@@ -489,7 +489,7 @@ ${recentMessages}
       };
 
       const analysis = JSON.parse(cleanJson(analysisText));
-      console.log('[Chat] Search analysis:', analysis);
+      //console.log('[Chat] Search analysis:', analysis);
       
       // 2. MODIFIED: Handle multiple search subtasks instead of just the highest priority one
       let allResults = { results: [] };
