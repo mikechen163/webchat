@@ -826,6 +826,7 @@ ${formattedResults}
 
       let assistantResponse = "";
       let tokenCount = 0;
+      let lastContent = "";  // 用于跟踪最后的内容
       
       try {
         while (true) {
@@ -834,25 +835,46 @@ ${formattedResults}
           
           const chunk = new TextDecoder().decode(value);
           
-          // 检查是否包含token信息（假设API返回格式为: "tokens: {number}\n"）
-          const tokenMatch = chunk.match(/tokens: (\d+)/);
-          if (tokenMatch) {
-            tokenCount = parseInt(tokenMatch[1]);
-            continue; // 跳过token信息的显示
+          // 新增：检查是否是token信息的特殊格式
+          const tokenDataMatch = chunk.match(/data: ({.*?"tokens".*?})/);
+          if (tokenDataMatch) {
+            try {
+              const tokenData = JSON.parse(tokenDataMatch[1]);
+              tokenCount = tokenData.tokens;
+              // 确保即使没有新内容也更新token
+              messages = messages.map(msg => {
+                if (msg.id === tempAssistantMsgId) {
+                  return { 
+                    ...msg, 
+                    content: lastContent,  // 使用最后的有效内容
+                    tokenCount: tokenCount
+                  };
+                }
+                return msg;
+              });
+              continue;
+            } catch (e) {
+              console.error('Failed to parse token data:', e);
+            }
           }
           
-          assistantResponse += chunk;
-                   
-          messages = messages.map(msg => {
-            if (msg.id === tempAssistantMsgId) {
-              return { 
-                ...msg, 
-                content: assistantResponse,
-                tokenCount: tokenCount  // 更新token计数
-              };
-            }
-            return msg;
-          });
+          // 正常消息内容处理
+          const cleanedChunk = chunk.replace(/data: {"tokens": \d+}/g, '');
+          if (cleanedChunk.trim()) {
+            assistantResponse += cleanedChunk;
+            lastContent = assistantResponse;  // 保存最后的有效内容
+            
+            messages = messages.map(msg => {
+              if (msg.id === tempAssistantMsgId) {
+                return { 
+                  ...msg, 
+                  content: assistantResponse,
+                  tokenCount: tokenCount
+                };
+              }
+              return msg;
+            });
+          }
         }
       } catch (readError) {
         if (readError.name === 'AbortError') {

@@ -300,41 +300,40 @@ export async function POST({ request, params, fetch, locals }) {
         try {
           let buffer = '';
           let totalTokens = 0;
-          let lastMessageEnd = true;  // 跟踪是否在消息边界
+          let currentMessage = '';
           
+          function updateTokenCount(text: string) {
+            // 基于实际文本内容计算 tokens
+            // 1. 将文本分割成单词（英文）或字符（中文等）
+            const words = text.match(/[\u4e00-\u9fff]|[a-zA-Z0-9]+|\S/g) || [];
+            // 2. 估算 token 数量：
+            // - 每个中文字符算1个token
+            // - 每个英文单词算1个token
+            // - 每个标点符号算1个token
+            return words.length;
+          }
+
           while (true) {
             const { done, value } = await reader.read();
+            
             if (done) {
-              // 在结束时发送最终的token计数
-              if (totalTokens > 0) {
-                const tokenInfo = `tokens: ${totalTokens}\n`;
-                controller.enqueue(tokenInfo);
-              }
+              // 只在流结束时发送一次最终的 token 计数
+              controller.enqueue(`\ndata: {"tokens": ${totalTokens}}\n\n`);
               // 只有非系统指令且不是JSON响应时才保存assistant消息
-             // console.log('Saving assistant message:', fullAssistantMessage);
+              // console.log('Saving assistant message:', fullAssistantMessage);
               
-                // Remove <think>...</think> content before saving
-                const filteredMessage = fullAssistantMessage.replace(/<think>.*?<\/think>/g, '');
-                
-                if (!filteredMessage.includes('"completeness":') && !filteredMessage.includes('"requiresSearch":')) {
-                  await prisma.message.create({
-                    data: {
-                      sessionId: params.id,
-                      role: "assistant",
-                      content: filteredMessage
-                    }
-                  });
+              // Remove <think>...</think> content before saving
+              const filteredMessage = fullAssistantMessage.replace(/<think>.*?<\/think>/g, '');
               
-              // if ( !fullAssistantMessage.includes('"completeness":') 
-              //   &&  !fullAssistantMessage.includes('"requiresSearch":')) {
-              //   await prisma.message.create({
-              //     data: {
-              //       sessionId: params.id,
-              //       role: "assistant",
-              //       content: fullAssistantMessage
-              //     }
-              //   });
-
+              if (!filteredMessage.includes('"completeness":') && !filteredMessage.includes('"requiresSearch":')) {
+                await prisma.message.create({
+                  data: {
+                    sessionId: params.id,
+                    role: "assistant",
+                    content: filteredMessage
+                  }
+                });
+            
                 // 检查是否需要生成标题
                 const messageCount = await prisma.message.count({
                   where: { sessionId: params.id }
@@ -367,52 +366,34 @@ export async function POST({ request, params, fetch, locals }) {
               if (trimmedLine.startsWith('data: ')) {
                 try {
                   const jsonStr = trimmedLine.slice(6);
-                 
-                   const json = JSON.parse(jsonStr);
-    
-                  if (json.choices?.[0]?.delta?.reasoning_content) {
-                   // console.log('reasoning_content:',reason_content_flag, json.choices[0].delta.reasoning_content);
-                    if (!reason_content_flag) {
-                      reason_content_flag = true;
-                      fcontent = '<think>' + json.choices[0].delta.reasoning_content;
-                    } else {
-                      fcontent =  json.choices[0].delta.reasoning_content;
-                    }
-                  } else {
-
-                    if (json.choices?.[0]?.delta?.reasoning) {
-                      // console.log('reasoning:',reason_content_flag, json.choices[0].delta.reasoning);
-                       if (!reason_content_flag) {
-                         reason_content_flag = true;
-                         fcontent = '<think>' + json.choices[0].delta.reasoning;
-                       } else {
-                         fcontent =  json.choices[0].delta.reasoning;
-                       }
-                      } else {
-
-                                          fcontent = json.choices?.[0]?.delta?.content || '';
-                    // console.log('content:',reason_content_flag, fcontent);
-                    fullAssistantMessage += fcontent;
-                     if (fcontent && reason_content_flag) {
-                      fcontent = '</think> <br>' + fcontent;
-                      reason_content_flag = false;
-                    } 
+                  const json = JSON.parse(jsonStr);
+                  
+                  // 处理不同类型的内容并统计 tokens
+                  if (json.choices?.[0]?.delta?.content) {
+                    const content = json.choices[0].delta.content;
+                    totalTokens += updateTokenCount(content);
+                    currentMessage += content;
+                    controller.enqueue(content);
+                  }
+                  
+                  // 处理推理内容
+                  if (json.choices?.[0]?.delta?.reasoning_content || json.choices?.[0]?.delta?.reasoning) {
+                    const reasoning = json.choices[0].delta.reasoning_content || json.choices[0].delta.reasoning;
+                    totalTokens += updateTokenCount(reasoning);
+                    const formattedReasoning = reason_content_flag ? reasoning : '<think>' + reasoning;
+                    controller.enqueue(formattedReasoning);
+                    reason_content_flag = true;
+                  } else if (reason_content_flag) {
+                    // 结束推理部分
+                    reason_content_flag = false;
+                    controller.enqueue('</think> <br>');
                   }
 
-
+                  // 每积累100个tokens就发送一次更新
+                  if (totalTokens % 100 === 0) {
+                    controller.enqueue(`\ndata: {"tokens": ${totalTokens}}\n\n`);
                   }
 
-                 // console.log('fcontent:', fcontent);
-                  //fullAssistantMessage += fcontent;
-                 
-                  controller.enqueue(fcontent);
-
-                  // const content = json.choices?.[0]?.delta?.content || '';
-
-                  // if (content) {
-                  //   fullAssistantMessage += content;
-                  //   controller.enqueue(content);
-                  // }
                 } catch (error) {
                   console.warn('JSON parse error:', { line: trimmedLine, error });
                   continue;
