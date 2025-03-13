@@ -5,7 +5,7 @@
   import { onMount } from "svelte";
   import { marked } from "marked";
   import ChatBubble from "$lib/components/ChatBubble.svelte";
-  import { toast } from "$lib/components/ui/toast";
+  import { toast as showToast } from "$lib/components/ui/toast";
   import { onDestroy } from "svelte";
   import { sessionsStore } from '$lib/stores/sessions';
   import { ArrowUp, Trash2, Search, X, Info } from "lucide-svelte";
@@ -13,6 +13,12 @@
   import { selectedModel } from "$lib/stores/selectedModel";
   import { browser } from "$app/environment";
   import SearchProgressDisplay from "$lib/components/SearchProgressDisplay.svelte";
+
+  // Add the getFullModelName function
+  function getFullModelName(model: ModelConfig): string {
+    const providerName = model.provider?.name || "其他";
+    return `${providerName}/${model.name}`;
+  }
 
   export let data;
   let messages = data.messages || [];
@@ -667,7 +673,9 @@ ${recentMessages}
         id: tempAssistantMsgId,
         role: "assistant", 
         content: "",
-        createdAt: new Date()
+        createdAt: new Date(),
+        modelInfo: $selectedModel ? getFullModelName($selectedModel) : '',  // 添加模型信息
+        tokenCount: 0  // 初始化token计数
       }];
 
       let content = userMessage;
@@ -817,6 +825,7 @@ ${formattedResults}
       if (!reader) throw new Error('No response stream');
 
       let assistantResponse = "";
+      let tokenCount = 0;
       
       try {
         while (true) {
@@ -824,11 +833,23 @@ ${formattedResults}
           if (done) break;
           
           const chunk = new TextDecoder().decode(value);
+          
+          // 检查是否包含token信息（假设API返回格式为: "tokens: {number}\n"）
+          const tokenMatch = chunk.match(/tokens: (\d+)/);
+          if (tokenMatch) {
+            tokenCount = parseInt(tokenMatch[1]);
+            continue; // 跳过token信息的显示
+          }
+          
           assistantResponse += chunk;
                    
           messages = messages.map(msg => {
             if (msg.id === tempAssistantMsgId) {
-              return { ...msg, content: assistantResponse };
+              return { 
+                ...msg, 
+                content: assistantResponse,
+                tokenCount: tokenCount  // 更新token计数
+              };
             }
             return msg;
           });
@@ -850,7 +871,7 @@ ${formattedResults}
         return;
       } else {
         console.error("[Chat] Submit error:", e);
-        toast({
+        showToast({
           title: "Error",
           description: "Failed to send message",
           type: "error"
@@ -876,7 +897,7 @@ ${formattedResults}
       sending = false;
       // Restore the user's input
       messageInput = messages[messages.length - 1]?.content || "";
-      toast({
+      showToast({
         title: "Cancelled",
         description: "Message generation stopped",
         type: "info"
@@ -1008,6 +1029,8 @@ ${formattedResults}
               role={message.role}
               content={message.content}
               timestamp={message.createdAt}
+              modelInfo={message.modelInfo}
+              tokenCount={message.tokenCount}
             />
           {/each}
         </div>

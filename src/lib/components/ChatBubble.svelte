@@ -7,6 +7,8 @@
   export let role: "user" | "assistant";
   export let content: string;
   export let timestamp: Date;
+  export let modelInfo: string = "";  // 新增：模型信息
+  export let tokenCount: number = 0;  // 新增：token计数
 
   const dispatch = createEventDispatcher();
   let copied = false;
@@ -88,7 +90,17 @@
     </div>
     
     <div class="mt-2 text-xs text-gray-500 flex items-center justify-between">
-      <span>{formattedTime}</span>
+      <div class="flex items-center gap-2">
+        <span>{formattedTime}</span>
+        {#if role === 'assistant' && modelInfo}
+          <span class="text-gray-400">|</span>
+          <span class="text-gray-600">{modelInfo}</span>
+          {#if tokenCount > 0}
+            <span class="text-gray-400">|</span>
+            <span class="text-gray-600">{tokenCount} tokens</span>
+          {/if}
+        {/if}
+      </div>
       
       <!-- Mobile copy button -->
       <button 

@@ -93,7 +93,7 @@
     </div>
   </DropdownMenuTrigger>
   
-  <DropdownMenuContent align={showFullName ? "end" : "start"} class="w-56">
+  <DropdownMenuContent align="start" class="w-16">
     {#if loading}
       <DropdownMenuItem disabled>
         <span class="text-gray-400">Loading models...</span>
@@ -118,7 +118,7 @@
               {/if}
             </div>
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent class="w-56">
+          <DropdownMenuSubContent class="w-auto">
             {#each modelsByProvider[providerName] as model}
               <DropdownMenuItem on:click={() => selectModel(model)}>
                 <div class="flex items-center justify-between w-full">

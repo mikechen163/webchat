@@ -299,10 +299,17 @@ export async function POST({ request, params, fetch, locals }) {
 
         try {
           let buffer = '';
+          let totalTokens = 0;
+          let lastMessageEnd = true;  // 跟踪是否在消息边界
           
           while (true) {
             const { done, value } = await reader.read();
             if (done) {
+              // 在结束时发送最终的token计数
+              if (totalTokens > 0) {
+                const tokenInfo = `tokens: ${totalTokens}\n`;
+                controller.enqueue(tokenInfo);
+              }
               // 只有非系统指令且不是JSON响应时才保存assistant消息
              // console.log('Saving assistant message:', fullAssistantMessage);
               
