@@ -102,23 +102,14 @@ async function fetchOpenAIModels(apiKey: string, baseUrl?: string): Promise<Mode
     throw new Error(`Failed to fetch OpenAI models: ${response.statusText}`);
   }
   
-  const data = await response.json();
-  console.log('OpenAI Models:', data);
-  
-  // // Filter for chat models
-  // return data.data
-  //   .filter((model: any) => 
-  //     model.id.includes('gpt') || 
-  //     model.id.includes('text-davinci') ||
-  //     model.id.includes('claude')
-  //   )
-  //   .map((model: any) => ({
-  //     id: model.id,
-  //     name: model.id
-  //   }));
+const data = await response.json();
+console.log('OpenAI Models:', data);
 
-    // 保留全部结果并转换格式
-return data.data.map((model: any) => ({
+// Handle both array and object responses
+const models = Array.isArray(data) ? data : (data.data || []);
+
+// 保留全部结果并转换格式
+return models.map((model: any) => ({
   id: model.id,
   name: model.id
 }));
