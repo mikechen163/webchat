@@ -834,12 +834,24 @@ ${formattedResults}
           
           const chunk = new TextDecoder().decode(value);
           
-          // 检查是否包含token信息（假设API返回格式为: "tokens: {number}\n"）
-          const tokenMatch = chunk.match(/tokens: (\d+)/);
-          if (tokenMatch) {
+          //console.log('[Chat] Response chunk:', chunk); // Debug log
+            // Check for token information in the format: data: {"tokens":10}
+            const tokenMatch = chunk.match(/data: \{\"tokens\":(\d+)\}/);
+            if (tokenMatch) {
             tokenCount = parseInt(tokenMatch[1]);
-            continue; // 跳过token信息的显示
-          }
+            // Update token count in messages immediately
+            messages = messages.map(msg => {
+              if (msg.id === tempAssistantMsgId) {
+              return {
+                ...msg,
+                tokenCount: tokenCount
+              };
+              }
+              return msg;
+            });
+            continue;
+            }
+         
           
           assistantResponse += chunk;
                    

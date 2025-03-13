@@ -301,15 +301,31 @@ export async function POST({ request, params, fetch, locals }) {
           let buffer = '';
           let totalTokens = 0;
           let lastMessageEnd = true;  // 跟踪是否在消息边界
+
+
+          function updateTokenCount(text: string) {
+            // 基于实际文本内容计算 tokens
+            // 1. 将文本分割成单词（英文）或字符（中文等）
+            const words = text.match(/[\u4e00-\u9fff]|[a-zA-Z0-9]+|\S/g) || [];
+            // 2. 估算 token 数量：
+            // - 每个中文字符算1个token
+            // - 每个英文单词算1个token
+            // - 每个标点符号算1个token
+            return words.length;
+          }
           
           while (true) {
             const { done, value } = await reader.read();
             if (done) {
-              // 在结束时发送最终的token计数
-              if (totalTokens > 0) {
-                const tokenInfo = `tokens: ${totalTokens}\n`;
-                controller.enqueue(tokenInfo);
-              }
+
+
+                // 在结束时发送token计数，只有非系统指令时才发送
+                if (totalTokens > 0 && !isSystemPrompt) {
+                  const tokenInfo = `data: ${JSON.stringify({ tokens: totalTokens })}\n\n`;
+                  controller.enqueue(tokenInfo);
+                }
+               
+              
               // 只有非系统指令且不是JSON响应时才保存assistant消息
              // console.log('Saving assistant message:', fullAssistantMessage);
               
@@ -378,6 +394,10 @@ export async function POST({ request, params, fetch, locals }) {
                     } else {
                       fcontent =  json.choices[0].delta.reasoning_content;
                     }
+
+                    totalTokens += updateTokenCount(fcontent);
+
+
                   } else {
 
                     if (json.choices?.[0]?.delta?.reasoning) {
@@ -388,9 +408,13 @@ export async function POST({ request, params, fetch, locals }) {
                        } else {
                          fcontent =  json.choices[0].delta.reasoning;
                        }
+
+                        totalTokens += updateTokenCount(fcontent);
                       } else {
 
                                           fcontent = json.choices?.[0]?.delta?.content || '';
+
+                  totalTokens += updateTokenCount(fcontent);
                     // console.log('content:',reason_content_flag, fcontent);
                     fullAssistantMessage += fcontent;
                      if (fcontent && reason_content_flag) {
@@ -404,6 +428,12 @@ export async function POST({ request, params, fetch, locals }) {
 
                  // console.log('fcontent:', fcontent);
                   //fullAssistantMessage += fcontent;
+
+                  // Send token count every 100 tokens for non-system prompts
+                  if (!isSystemPrompt && totalTokens % 100 === 0) {
+                    const tokenInfo = `data: ${JSON.stringify({ tokens: totalTokens })}\n\n`;
+                    controller.enqueue(tokenInfo);
+                  }
                  
                   controller.enqueue(fcontent);
 
