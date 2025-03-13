@@ -53,7 +53,7 @@ export const GET: RequestHandler = async ({ url, fetch }) => {
       const data = await response.json();
 
       console.log('[Fetch URL] Jina API response:', data.data.description);
-      if (typeof data.data.content === 'string' && typeof data.data.description === 'string') {
+      if (typeof data.data.content === 'string' && typeof data.data.description === 'string' && data.data.content.length > 200)  {
         // const secondOccurrence = data.data.content.indexOf(data.data.description, data.data.content.indexOf(data.data.description) + 1);
         // if (secondOccurrence !== -1) {
         //   data.data.content = data.data.content.substring(secondOccurrence);
@@ -135,7 +135,7 @@ export const GET: RequestHandler = async ({ url, fetch }) => {
     } catch (e) {
       clearTimeout(timeout);
       if (e.name === 'AbortError') {
-        throw error(408, 'Request timeout');
+        throw error(408, 'Fetch  content error ');
       }
       throw e;
     }

@@ -179,6 +179,11 @@ Important: Keep the response concise and ensure it's valid JSON.`;
     
     // Improved JSON cleaning function
     const cleanJson = (text: string): string => {
+      // Ensure we have a string to work with
+      if (!text || typeof text !== 'string') {
+        throw new Error('Input must be a non-empty string');
+      }
+
       try {
         // First attempt: Try to parse as-is
         JSON.parse(text);
@@ -186,30 +191,31 @@ Important: Keep the response concise and ensure it's valid JSON.`;
       } catch {
         try {
           // Second attempt: Clean up the text and try to extract JSON
-          text = text.replace(/```json|```/g, '').trim();
+          const cleaned = text.replace(/```json|```/g, '').trim();
           
           // Find the first '{' and last '}'
-          const start = text.indexOf('{');
-          const end = text.lastIndexOf('}') + 1;
+          const start = cleaned.indexOf('{');
+          const end = cleaned.lastIndexOf('}') + 1;
           
           if (start === -1 || end === 0) {
             throw new Error('No JSON object found');
           }
           
-          const extracted = text.slice(start, end);
+          const extracted = cleaned.slice(start, end);
           
-          // Validate the extracted JSON
-          JSON.parse(extracted);
-          return extracted;
-        } catch (e) {
-          // Third attempt: Try to fix truncated JSON
           try {
-            const fixedJson = fixTruncatedJson(text);
-            return fixedJson;
+            // Validate the extracted JSON
+            JSON.parse(extracted);
+            return extracted;
           } catch {
-            console.error('Failed to fix JSON:', text);
-            throw new Error('Invalid JSON structure in response');
+            // If validation fails, try to fix the JSON
+            const fixedJson = fixTruncatedJson(extracted);
+            return fixedJson;
           }
+        } catch (e) {
+          console.error('Failed to process JSON:', e.message);
+          console.debug('Original text:', text);
+          throw new Error(`Invalid JSON structure: ${e.message}`);
         }
       }
     };
@@ -409,7 +415,7 @@ Query: "${query}"
 
 1. if  this is a topic about China or Chinese culture, people,companies etc, use Chinese for keywords, in other cases, use English for keywords.  
 2. Today is ${new Date().toISOString().split('T')[0]} , consider freshness
-3. Consider <history> </history> context when generating keywords.
+3. Consider history context when generating keywords.
 4. keywords should  be within 3 words
 5. use official ir website for financial information , ignore sites like businesswire.com reuters.com
 
@@ -428,13 +434,13 @@ Return a JSON object with exactly these fields:
   "considerCompleteness": boolean // true if comprehensive information is important
 }
   
-<history>
+Recent conversation context:
 ${recentMessages}
-</history>
+
 
 `;
 
- // console.log('[Chat] Analysis prompt:', analysisPrompt);
+  console.log('[Chat] Analysis prompt:', analysisPrompt);
   
       const response = await fetch(`/api/chat/${$page.params.id}`, {
         method: "POST",
@@ -489,7 +495,7 @@ ${recentMessages}
       };
 
       const analysis = JSON.parse(cleanJson(analysisText));
-      //console.log('[Chat] Search analysis:', analysis);
+      console.log('[Chat] Search analysis:', analysis);
       
       // 2. MODIFIED: Handle multiple search subtasks instead of just the highest priority one
       let allResults = { results: [] };
@@ -826,7 +832,17 @@ ${formattedResults}
 
       let assistantResponse = "";
       let tokenCount = 0;
-      let lastContent = "";  // 用于跟踪最后的内容
+
+      function updateTokenCount(text: string) {
+            // 基于实际文本内容计算 tokens
+            // 1. 将文本分割成单词（英文）或字符（中文等）
+            const words = text.match(/[\u4e00-\u9fff]|[a-zA-Z0-9]+|\S/g) || [];
+            // 2. 估算 token 数量：
+            // - 每个中文字符算1个token
+            // - 每个英文单词算1个token
+            // - 每个标点符号算1个token
+            return words.length;
+          }
       
       try {
         while (true) {
@@ -834,47 +850,26 @@ ${formattedResults}
           if (done) break;
           
           const chunk = new TextDecoder().decode(value);
+
           
-          // 新增：检查是否是token信息的特殊格式
-          const tokenDataMatch = chunk.match(/data: ({.*?"tokens".*?})/);
-          if (tokenDataMatch) {
-            try {
-              const tokenData = JSON.parse(tokenDataMatch[1]);
-              tokenCount = tokenData.tokens;
-              // 确保即使没有新内容也更新token
-              messages = messages.map(msg => {
-                if (msg.id === tempAssistantMsgId) {
-                  return { 
-                    ...msg, 
-                    content: lastContent,  // 使用最后的有效内容
-                    tokenCount: tokenCount
-                  };
-                }
-                return msg;
-              });
-              continue;
-            } catch (e) {
-              console.error('Failed to parse token data:', e);
+          
+          //console.log('[Chat] Response chunk:', chunk); // Debug log
+            tokenCount = updateTokenCount(assistantResponse + chunk);
+                  
+         
+          
+          assistantResponse += chunk;
+                   
+          messages = messages.map(msg => {
+            if (msg.id === tempAssistantMsgId) {
+              return { 
+                ...msg, 
+                content: assistantResponse,
+                tokenCount: tokenCount  // 更新token计数
+              };
             }
-          }
-          
-          // 正常消息内容处理
-          const cleanedChunk = chunk.replace(/data: {"tokens": \d+}/g, '');
-          if (cleanedChunk.trim()) {
-            assistantResponse += cleanedChunk;
-            lastContent = assistantResponse;  // 保存最后的有效内容
-            
-            messages = messages.map(msg => {
-              if (msg.id === tempAssistantMsgId) {
-                return { 
-                  ...msg, 
-                  content: assistantResponse,
-                  tokenCount: tokenCount
-                };
-              }
-              return msg;
-            });
-          }
+            return msg;
+          });
         }
       } catch (readError) {
         if (readError.name === 'AbortError') {

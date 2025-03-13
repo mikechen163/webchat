@@ -302,25 +302,13 @@ export async function POST({ request, params, fetch, locals }) {
           let totalTokens = 0;
           let currentMessage = '';
           
-          function updateTokenCount(text: string) {
-            // 基于实际文本内容计算 tokens
-            // 1. 将文本分割成单词（英文）或字符（中文等）
-            const words = text.match(/[\u4e00-\u9fff]|[a-zA-Z0-9]+|\S/g) || [];
-            // 2. 估算 token 数量：
-            // - 每个中文字符算1个token
-            // - 每个英文单词算1个token
-            // - 每个标点符号算1个token
-            return words.length;
-          }
+        
 
           while (true) {
             const { done, value } = await reader.read();
             
             if (done) {
-              // 只在流结束时发送一次最终的 token 计数
-              if (!isSystemPrompt) {
-                controller.enqueue(`\ndata: {"tokens": ${totalTokens}}\n\n`);
-              }
+             
               //controller.enqueue(`\ndata: {"tokens": ${totalTokens}}\n\n`);
               // 只有非系统指令且不是JSON响应时才保存assistant消息
               // console.log('Saving assistant message:', fullAssistantMessage);
@@ -374,7 +362,6 @@ export async function POST({ request, params, fetch, locals }) {
                   // 处理不同类型的内容并统计 tokens
                   if (json.choices?.[0]?.delta?.content) {
                     const content = json.choices[0].delta.content;
-                    totalTokens += updateTokenCount(content);
                     currentMessage += content;
                     fullAssistantMessage += content;
                     controller.enqueue(content);
@@ -383,7 +370,7 @@ export async function POST({ request, params, fetch, locals }) {
                   // 处理推理内容
                   if (json.choices?.[0]?.delta?.reasoning_content || json.choices?.[0]?.delta?.reasoning) {
                     const reasoning = json.choices[0].delta.reasoning_content || json.choices[0].delta.reasoning;
-                    totalTokens += updateTokenCount(reasoning);
+                    
                     const formattedReasoning = reason_content_flag ? reasoning : '<think>' + reasoning;
                     controller.enqueue(formattedReasoning);
                     reason_content_flag = true;
@@ -392,15 +379,6 @@ export async function POST({ request, params, fetch, locals }) {
                     reason_content_flag = false;
                     controller.enqueue('</think> <br>');
                   }
-
-                  // 每积累100个tokens就发送一次更新
-                  // Skip token updates for system prompts
-                  if (!isSystemPrompt && totalTokens % 100 === 0) {
-                    controller.enqueue(`\ndata: {"tokens": ${totalTokens}}\n\n`);
-                  }
-                  // if (totalTokens % 100 === 0) {
-                  //   controller.enqueue(`\ndata: {"tokens": ${totalTokens}}\n\n`);
-                  // }
 
                 } catch (error) {
                   //console.warn('JSON parse error:', { line: trimmedLine, error });
