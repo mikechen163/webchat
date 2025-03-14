@@ -80,8 +80,23 @@
     return model.provider?.name || "其他";
   }
 
+  // 添加视窗宽度检测
+  let isMobile = false;
+  
   onMount(() => {
+    // 检测是否为移动设备
+    const checkMobile = () => {
+      isMobile = window.innerWidth < 768; // md breakpoint
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
     loadAllModels();
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
   });
 </script>
 
@@ -107,7 +122,7 @@
         <span class="text-gray-400">No models available</span>
       </DropdownMenuItem>
     {:else if useTwoLevelMenu}
-      <!-- 二级菜单显示 - 先显示提供商，悬停时显示模型 -->
+      <!-- 二级菜单显示 - 重叠但不覆盖提供商 -->
       {#each providerNames as providerName, i}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
@@ -118,7 +133,21 @@
               {/if}
             </div>
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent class="w-auto">
+          <DropdownMenuSubContent 
+            class="w-auto"
+            style="
+              position: absolute; 
+              {isMobile ? `
+                left: 10%;
+                transform: translateX(60%) translateY(10%);
+                margin-bottom: 8px;
+              ` : `
+                left: 90%;
+                transform: translateX(0);
+              `}
+              {providerNames.length > 3 ? 'max-height: 650px; overflow-y: auto;' : ''}
+            "
+          >
             {#each modelsByProvider[providerName] as model}
               <DropdownMenuItem on:click={() => selectModel(model)}>
                 <div class="flex items-center justify-between w-full">
