@@ -272,7 +272,44 @@ export async function POST({ request, params, fetch, locals }) {
       ...(max_tokens && { max_tokens })
     });
 
-    const response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
+     let response
+    // Check if it's OpenAI base URL and O1/O3 model
+    const isOpenAIUrl = modelConfig.baseUrl.includes('api.openai.com');
+    const isO1O3Model = modelConfig.model.startsWith('o1') || modelConfig.model.startsWith('o3');
+
+    if (isOpenAIUrl && isO1O3Model) {
+      // Format messages for O1/O3 models
+      const formattedMessages = messages.map(msg => ({
+        role: msg.role,
+        content: [{
+          type: 'text',
+          text: msg.content
+        }]
+      }));
+
+      // Special request body for O1/O3 models
+      const requestBody = {
+        model: modelConfig.model,
+        messages: formattedMessages,
+        response_format: {
+          type: 'text'
+        },
+        reasoning_effort: 'medium',
+        stream: true
+      };
+       response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${modelConfig.apiKey}`,
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+    } else {
+      // Original request configuration remains for other models
+    
+     response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -286,6 +323,7 @@ export async function POST({ request, params, fetch, locals }) {
         ...(max_tokens && { max_tokens }) // Only include max_tokens if it's provided
       }),
     });
+  }
 
     if (!response.ok) {
       console.error('API response error:', response.status, response.statusText);

@@ -818,7 +818,7 @@ ${formattedResults}
           modelId: $selectedModel?.id,
           // Use moderate temperature for final response to balance creativity and accuracy
           temperature: 0.7,
-          max_tokens: 8000,
+          max_tokens: 4000,
         }),
         signal: abortController.signal
       });
