@@ -71,13 +71,13 @@ export async function POST({ request }) {
       throw error(400, 'Name, model, API key, and provider are required fields');
     }
     // Combine provider name with model name
-    const provider = await prisma.provider.findUnique({
-      where: { id: data.providerId }
-    });
-    if (!provider) {
-      throw error(404, 'Provider not found');
-    }
-    data.name = `${provider.name}/${data.name}`;
+    // const provider = await prisma.provider.findUnique({
+    //   where: { id: data.providerId }
+    // });
+    // if (!provider) {
+    //   throw error(404, 'Provider not found');
+    // }
+    // data.name = `${provider.name}/${data.name}`;
     
     const model = await prisma.modelConfig.create({
       data: {
@@ -103,7 +103,40 @@ export async function POST({ request }) {
     console.error('Error creating model:', e);
     // Handle unique constraint violations
     if (e.code === 'P2002') {
-      throw error(400, 'A model with this name already exists');
+
+    // If name collision, append provider name and try again
+    //const updatedName = `${data.name}_${provider.name}`;
+
+    const provider = await prisma.provider.findUnique({
+      where: { id: data.providerId }
+    });
+    if (!provider) {
+      throw error(404, 'Provider not found');
+    }
+    data.name = `${provider.name}/${data.name}`;
+
+
+    //data.name = updatedName;
+    const model = await prisma.modelConfig.create({
+      data: {
+        name: data.name,
+        baseUrl: data.baseUrl || '',
+        apiKey: data.apiKey,
+        model: data.model,
+        enabled: data.enabled !== false,
+        providerId: data.providerId
+      },
+      include: {
+        provider: {
+          select: {
+            name: true,
+            type: true
+          }
+        }
+      }
+    });
+    return json(model, { status: 201 });
+      //throw error(400, 'A model with this name already exists');
     }
     throw error(500, 'Failed to create model');
   }
