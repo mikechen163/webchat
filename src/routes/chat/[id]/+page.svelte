@@ -142,8 +142,8 @@
 
 
 1 Use official website for priority.
-2 For relevantUrls, think which one is more relevant to the query and in the first 3 place.
-3 Exclude site like  businesswire reuters.
+2 For relevantUrls, think which one is more relevant to the query and return only this most revelant url .
+3 Always consider using the offical website for financial information.
 
 
 Evaluate and return a JSON object with exactly these fields:
