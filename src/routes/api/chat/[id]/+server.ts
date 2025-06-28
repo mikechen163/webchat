@@ -286,7 +286,7 @@ export async function POST({ request, params, fetch, locals }) {
      let response
     // Check if it's OpenAI base URL and O1/O3 model
     const isOpenAIUrl = modelConfig.baseUrl.includes('api.openai.com');
-    const isO1O3Model = modelConfig.model.startsWith('o1') || modelConfig.model.startsWith('o3');
+    const isO1O3Model = modelConfig.model.startsWith('o4') || modelConfig.model.startsWith('o3');
 
     if (isOpenAIUrl && isO1O3Model) {
       // Format messages for O1/O3 models
@@ -305,7 +305,7 @@ export async function POST({ request, params, fetch, locals }) {
         response_format: {
           type: 'text'
         },
-        reasoning_effort: 'medium',
+        reasoning_effort: 'high',
         stream: true
       };
        response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
@@ -314,8 +314,10 @@ export async function POST({ request, params, fetch, locals }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${modelConfig.apiKey}`,
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+         agent // 关键：注入代理配置
       });
+     
 
     } else {
       // Original request configuration remains for other models
@@ -333,6 +335,7 @@ export async function POST({ request, params, fetch, locals }) {
         temperature,
         ...(max_tokens && { max_tokens }) // Only include max_tokens if it's provided
       }),
+       agent // 关键：注入代理配置
     });
   }
 
