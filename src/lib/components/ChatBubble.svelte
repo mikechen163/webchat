@@ -1,25 +1,21 @@
 <script lang="ts">
-  import { Button } from "./ui/button";
-  import { marked } from "marked";
-  import { createEventDispatcher, onMount } from "svelte";
-  import { ChevronDown, ChevronUp, ClipboardCopy, Check } from "lucide-svelte";
+  import { onMount, createEventDispatcher } from 'svelte';
+  import { marked } from 'marked';
+  import { Button } from './ui/button';
+  import { ChevronDown, ChevronUp, ClipboardCopy, Check } from 'lucide-svelte';
 
-  onMount(() => {
-    marked.setOptions({
-      breaks: true,
-      gfm: true
-    });
-  });
 
-  export let role: "user" | "assistant";
+
   export let content: string;
+  export let role: 'user' | 'assistant';
   export let timestamp: Date;
-  export let modelInfo: string = "";  // 新增：模型信息
-  export let tokenCount: number = 0;  // 新增：token计数
+  export let modelInfo: string = '';
+  export let tokenCount: number = 0;
 
   const dispatch = createEventDispatcher();
   let copied = false;
   let showReasoning = true;
+  let katexLoaded = false;
 
   function copyToClipboard() {
     navigator.clipboard.writeText(content);
@@ -34,8 +30,60 @@
   // Check if the content contains reasoning sections
   $: hasReasoning = role === 'assistant' && content.includes('<think>') && content.includes('</think>');
 
+  onMount(() => {
+    marked.setOptions({
+      breaks: true,
+      gfm: true
+    });
+    
+    // Load KaTeX CSS and JS for math rendering
+    if (typeof window !== 'undefined') {
+      // Load KaTeX CSS
+      if (!document.querySelector('link[href*="katex"]')) {
+        const katexCSS = document.createElement('link');
+        katexCSS.rel = 'stylesheet';
+        katexCSS.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css';
+        document.head.appendChild(katexCSS);
+      }
+      
+      // Load KaTeX JS
+      if (!(window as any).katex && !document.querySelector('script[src*="katex"]')) {
+        const katexJS = document.createElement('script');
+        katexJS.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js';
+        katexJS.onload = () => {
+          katexLoaded = true;
+          console.log('KaTeX loaded successfully');
+        };
+        katexJS.onerror = () => {
+          console.error('Failed to load KaTeX');
+        };
+        document.head.appendChild(katexJS);
+      } else if ((window as any).katex) {
+        katexLoaded = true;
+      }
+    }
+  });
+
   // Process the content to handle reasoning sections and apply markdown
-  $: htmlContent = (() => {
+  $: htmlContent = ((katexIsReady) => { // Dependency injection
+    if (!katexIsReady) {
+      // If KaTeX is not ready, just process markdown without math
+      let processed = content;
+      if (hasReasoning) {
+        if (showReasoning) {
+          processed = content.replace(
+            /<think>([\s\S]*?)<\/think>/g,
+            (match, reasoningContent) => {
+              return `<div class="reasoning-section">${reasoningContent}</div>`;
+            }
+          );
+        } else {
+          processed = content.replace(/<think>[\s\S]*?<\/think>/g, '');
+        }
+      }
+      return marked(processed) as string;
+    }
+
     let processed = content;
     if (hasReasoning) {
       if (showReasoning) {
@@ -49,10 +97,58 @@
         processed = content.replace(/<think>[\s\S]*?<\/think>/g, '');
       }
     }
-    return marked(processed);
-  })();
+    
+    // Process math expressions with KaTeX BEFORE markdown processing
+    if (typeof window !== 'undefined' && (window as any).katex) {
+      console.log('Processing math with KaTeX for content:', processed.substring(0, 100));
+      
+      // Handle display math ($$...$$) first
+      processed = processed.replace(/\$\$([^$]+?)\$\$/g, (match: string, math: string) => {
+        try {
+          const cleanMath = math.trim();
+          console.log('Rendering display math:', cleanMath);
+          const rendered = (window as any).katex.renderToString(cleanMath, { 
+            displayMode: true,
+            throwOnError: false
+          });
+          return `<div class="katex-display-wrapper">${rendered}</div>`;
+        } catch (e) {
+          console.warn('KaTeX display math error:', e, 'for:', math);
+          return match;
+        }
+      });
+      
+      // Handle inline math ($...$) after display math - use simpler regex
+      processed = processed.replace(/\$([^$\n]+?)\$/g, (match: string, math: string) => {
+        // Skip if this is part of a display math (already processed)
+        if (processed.includes(`<div class="katex-display-wrapper">`) && 
+            processed.includes(match)) {
+          return match;
+        }
+        try {
+          const cleanMath = math.trim();
+          console.log('Rendering inline math:', cleanMath);
+          const rendered = (window as any).katex.renderToString(cleanMath, { 
+            displayMode: false,
+            throwOnError: false
+          });
+          return `<span class="katex-inline-wrapper">${rendered}</span>`;
+        } catch (e) {
+          console.warn('KaTeX inline math error:', e, 'for:', math);
+          return match;
+        }
+      });
+    } else {
+      console.log('KaTeX not available, window.katex:', typeof window !== 'undefined' ? !!(window as any).katex : 'no window');
+    }
+    
+    // Apply markdown processing (marked returns string in sync mode)
+    let html = marked(processed) as string;
+    
+    return html;
+  })(katexLoaded); // Pass the reactive variable here
 
-  $: formattedTime = new Date(timestamp).toLocaleTimeString();
+  $: formattedTime = timestamp.toLocaleTimeString();
 </script>
 
 <div class="flex gap-4 {role === 'assistant' ? 'bg-gray-50' : ''} p-4 rounded group">
@@ -115,29 +211,56 @@
 </div>
 
 <style>
-  /* Style for code blocks with black background */
+  /* Style for code blocks with light background */
   :global(.prose pre) {
-    background-color: #000 !important;
+    background-color: #f8f9fa !important;
+    border: 1px solid #e9ecef !important;
     border-radius: 6px;
     padding: 1em;
     overflow-x: auto;
   }
   
   :global(.prose pre code) {
-    color: #f8f8f2 !important;
+    color: #212529 !important;
     background-color: transparent !important;
     padding: 0;
   }
   
   /* Style for inline code */
   :global(.prose code:not(pre code)) {
-    background-color: #000 !important;
-    color: #f8f8f2 !important;
+    background-color: #f8f9fa !important;
+    color: #e83e8c !important;
+    border: 1px solid #e9ecef !important;
     padding: 0.2em 0.4em;
     border-radius: 3px;
     font-size: 0.9em;
     white-space: pre-wrap;
     word-break: break-word;
+  }
+  
+  /* KaTeX math styling */
+  :global(.katex) {
+    font-size: 1.1em;
+  }
+  
+  :global(.katex-display) {
+    margin: 1em 0;
+    text-align: center;
+  }
+  
+  :global(.katex-display-wrapper) {
+    margin: 1em 0;
+    text-align: center;
+    display: block;
+  }
+  
+  :global(.katex-inline-wrapper) {
+    display: inline;
+  }
+  
+  /* Prevent markdown from interfering with KaTeX */
+  :global(.katex-display-wrapper p) {
+    margin: 0;
   }
   
   /* Style for reasoning sections */

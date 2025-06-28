@@ -1,6 +1,10 @@
 // src/app.d.ts
 /// <reference types="lucia" />
 declare global {
+  interface Window {
+    katex?: any;
+  }
+
   namespace App {
     interface Locals {
       auth: import("lucia").AuthRequest;
