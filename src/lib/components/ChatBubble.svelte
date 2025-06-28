@@ -1,8 +1,15 @@
 <script lang="ts">
   import { Button } from "./ui/button";
   import { marked } from "marked";
-  import { createEventDispatcher } from "svelte";
-  import { ChevronDown, ChevronUp } from "lucide-svelte";
+  import { createEventDispatcher, onMount } from "svelte";
+  import { ChevronDown, ChevronUp, ClipboardCopy, Check } from "lucide-svelte";
+
+  onMount(() => {
+    marked.setOptions({
+      breaks: true,
+      gfm: true
+    });
+  });
 
   export let role: "user" | "assistant";
   export let content: string;
@@ -25,26 +32,25 @@
   }
   
   // Check if the content contains reasoning sections
-  $: hasReasoning = content.includes('<think>') && content.includes('</think>');
+  $: hasReasoning = role === 'assistant' && content.includes('<think>') && content.includes('</think>');
 
-  // Process the content to handle reasoning sections
-  $: processedContent = hasReasoning 
-    ? content.replace(
-        /<think>([\s\S]*?)<\/think>/g, 
-        (match, reasoningContent) => {
-          if (showReasoning) {
+  // Process the content to handle reasoning sections and apply markdown
+  $: htmlContent = (() => {
+    let processed = content;
+    if (hasReasoning) {
+      if (showReasoning) {
+        processed = content.replace(
+          /<think>([\s\S]*?)<\/think>/g,
+          (match, reasoningContent) => {
             return `<div class="reasoning-section">${reasoningContent}</div>`;
-          } else {
-            return '';
           }
-        }
-      )
-    : content;
-
-  // Remove reasoning sections for display when collapsed
-  $: displayContent = hasReasoning && !showReasoning
-    ? content.replace(/<think>[\s\S]*?<\/think>/g, '')
-    : content;
+        );
+      } else {
+        processed = content.replace(/<think>[\s\S]*?<\/think>/g, '');
+      }
+    }
+    return marked(processed);
+  })();
 
   $: formattedTime = new Date(timestamp).toLocaleTimeString();
 </script>
@@ -75,18 +81,9 @@
           </div>
         {/if}
         
-        {@html marked(showReasoning ? processedContent : displayContent)}
+        {@html htmlContent}
       </div>
       
-      <div class="flex-shrink-0 hidden md:block opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button 
-          variant="ghost" 
-          size="sm"
-          on:click={copyToClipboard}
-        >
-          {copied ? '✓' : '📋'}
-        </Button>
-      </div>
     </div>
     
     <div class="mt-2 text-xs text-gray-500 flex items-center justify-between">
@@ -102,12 +99,16 @@
         {/if}
       </div>
       
-      <!-- Mobile copy button -->
       <button 
-        class="md:hidden text-sm text-gray-500 px-2 py-1"
+        class="text-gray-500 hover:text-gray-700 p-1 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
         on:click={copyToClipboard}
+        aria-label="Copy message"
       >
-        {copied ? '✓ ' : '📋 '}
+        {#if copied}
+          <Check class="h-4 w-4 text-green-500" />
+        {:else}
+          <ClipboardCopy class="h-4 w-4" />
+        {/if}
       </button>
     </div>
   </div>

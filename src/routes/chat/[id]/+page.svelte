@@ -1123,13 +1123,20 @@ ${formattedResults}
         </div>
         <!-- Message input form -->
         <form on:submit|preventDefault={handleSubmit} class="flex items-center gap-2 max-w-full">
-          <Input
-            type="text"
+          <textarea
             bind:value={messageInput}
             placeholder="Send a Message"
             disabled={sending}
-            class="flex-1 h-[40px] md:h-[48px] rounded-[24px] text-sm md:text-base px-4 md:px-6 bg-white border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
+            rows="3"
+            class="flex-1 resize-none rounded-[24px] text-sm md:text-base px-4 md:px-6 py-3 bg-white border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            style="min-height: 80px; max-height: 200px;"
+            on:keydown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
+          ></textarea>
           <div class="flex gap-2">
             {#if sending}
               <Button 
