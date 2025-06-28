@@ -7,17 +7,21 @@ const prisma = new PrismaClient();
 // DELETE /api/models/:id - Delete a model
 export async function DELETE({ params }) {
   try {
-    await prisma.modelConfig.delete({
+    const result = await prisma.modelConfig.delete({
       where: { id: params.id }
     });
+    
+    if (!result) {
+      throw error(404, 'Model not found');
+    }
     
     return json({ success: true });
   } catch (e) {
     console.error('Error deleting model:', e);
     if (e.code === 'P2025') {
-      throw error(404, 'Model not found');
+      return json({ message: 'Model not found' }, { status: 404 });
     }
-    throw error(500, 'Failed to delete model');
+    return json({ message: 'Failed to delete model' }, { status: 500 });
   }
 }
 

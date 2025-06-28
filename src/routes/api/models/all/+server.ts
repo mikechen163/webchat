@@ -11,9 +11,6 @@ export const GET: RequestHandler = async () => {
     console.log('Fetching all models with provider info');
     
     const models = await prisma.modelConfig.findMany({
-      where: {
-        enabled: true
-      },
       include: {
         provider: {
           select: {

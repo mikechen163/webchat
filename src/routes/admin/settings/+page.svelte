@@ -45,6 +45,80 @@
 
   let providers = [];
   let models = [];
+  let selectedProviderId = null;
+  let activeTab = 'providers';
+  let discoveredModelsForProvider = [];
+  let showCustomModelForm = false;
+  let showDiscoveredModelsDialog = false;
+  let currentProviderForDiscovery = null;
+
+  $: filteredModels = selectedProviderId
+    ? models.filter(m => m.providerId === selectedProviderId)
+    : models;
+
+  async function discoverModels() {
+    if (!selectedProviderId) return;
+
+    isTestingKey = true;
+    discoveredModelsForProvider = [];
+    showCustomModelForm = false;
+
+    try {
+      // We need to get the full provider details first, especially the API key
+      const providerResponse = await fetch(`/api/providers/${selectedProviderId}`);
+      if (!providerResponse.ok) {
+        throw new Error("Failed to fetch provider details for model discovery.");
+      }
+      const fullProvider = await providerResponse.json();
+      currentProviderForDiscovery = fullProvider;
+
+      // Re-use the logic from testApiKey, but for the selected provider
+      const response = await fetch('/api/providers/test-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: fullProvider.type,
+          apiKey: fullProvider.apiKey,
+          baseUrl: fullProvider.baseUrl
+        })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        const existingModels = models
+          .filter(m => m.providerId === selectedProviderId)
+          .map(m => m.model);
+
+        discoveredModelsForProvider = (result.models || []).filter(discoveredModel => 
+          !existingModels.includes(discoveredModel.id)
+        );
+
+        if (discoveredModelsForProvider.length > 0) {
+          showDiscoveredModelsDialog = true;
+        } else if ((result.models || []).length === 0) {
+          showCustomModelForm = true;
+        }
+
+        showToast({
+          title: "Discovery Complete",
+          description: `Found ${discoveredModelsForProvider.length} new models.`,
+          type: "default"
+        });
+      } else {
+        showCustomModelForm = true;
+        throw new Error(result.message || "Failed to discover models");
+      }
+    } catch (err) {
+      showCustomModelForm = true;
+      showToast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "An error occurred during model discovery",
+        type: "error"
+      });
+    } finally {
+      isTestingKey = false;
+    }
+  }
   let isTestingKey = false;
   let discoveredModels: Array<{id: string; name: string; enabled?: boolean}> = [];
   let showProviderDialog = false;
@@ -107,7 +181,7 @@
 
   async function loadModels() {
     try {
-      const response = await fetch('/api/models');
+      const response = await fetch('/api/models/all');
       if (response.ok) {
         models = await response.json();
       } else {
@@ -243,34 +317,53 @@
     }
   }
 
-  async function addModel() {
-    try {
-      const response = await fetch('/api/models', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(newModel)
-      });
-      if (response.ok) {
-        const result = await response.json();
-        models = [...models, result];
-        resetModelForm();
+  async function addModel(modelData) {
+    if (!currentProviderForDiscovery) {
         showToast({
-          title: "Success",
-          description: "Model added successfully",
-          type: "default"
+            title: "Error",
+            description: "Could not add model: provider details are missing. Please try discovering models again.",
+            type: "error"
         });
+        return;
+    }
+
+    try {
+        const modelConfig = {
+            name: modelData.name,
+            model: modelData.model,
+            providerId: modelData.providerId,
+            baseUrl: currentProviderForDiscovery.baseUrl,
+            apiKey: currentProviderForDiscovery.apiKey,
+            enabled: true,
+            temperature: 0.7,
+            maxTokens: 8000
+        };
+
+        const response = await fetch('/api/models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(modelConfig)
+        });
+
+      if (response.ok) {
+        showToast({ title: 'Success', description: 'Model added successfully' });
+        loadModels(); // Reload models to show the new one
+        
+        // Remove the added model from the discovered list
+        discoveredModelsForProvider = discoveredModelsForProvider.filter(m => m.id !== modelData.model);
+        
+        // If no more discovered models, close the dialog
+        if (discoveredModelsForProvider.length === 0) {
+          showDiscoveredModelsDialog = false;
+        }
+
+        showCustomModelForm = false; // Hide custom model form
       } else {
         const error = await response.json();
-        throw new Error(error.message || "Failed to add model");
+        throw new Error(error.message || 'Failed to add model');
       }
     } catch (err) {
-      showToast({
-        title: "Error",
-        description: err.message || "An error occurred",
-        type: "error"
-      });
+      showToast({ title: 'Error', description: err.message, type: 'error' });
     }
   }
 
@@ -287,7 +380,8 @@
           type: "default"
         });
       } else {
-        throw new Error("Failed to delete model");
+        const error = await response.json();
+        throw new Error(error.message || "Failed to delete model");
       }
     } catch (err) {
       showToast({
@@ -649,13 +743,36 @@
 
 </script>
 
-<div class="max-w-4xl mx-auto px-4 py-8">
+<div class="max-w-5xl mx-auto px-4 py-8">
   <div class="mb-8">
     <h1 class="text-2xl font-bold mb-2">Admin Settings</h1>
     <p class="text-gray-600">Manage LLM providers and models</p>
   </div>
 
-  <div class="mb-8">
+  <div class="flex border-b mb-6">
+    <button 
+      class="px-4 py-2 -mb-px border-b-2 font-medium text-sm focus:outline-none "
+      class:border-blue-500={activeTab === 'providers'}
+      class:text-blue-600={activeTab === 'providers'}
+      class:border-transparent={activeTab !== 'providers'}
+      class:hover:text-gray-700={activeTab !== 'providers'}
+      on:click={() => activeTab = 'providers'}
+    >
+      Providers
+    </button>
+    <button 
+      class="px-4 py-2 -mb-px border-b-2 font-medium text-sm focus:outline-none"
+      class:border-blue-500={activeTab === 'models'}
+      class:text-blue-600={activeTab === 'models'}
+      class:border-transparent={activeTab !== 'models'}
+      class:hover:text-gray-700={activeTab !== 'models'}
+      on:click={() => activeTab = 'models'}
+    >
+      Model Management
+    </button>
+  </div>
+
+  {#if activeTab === 'providers'}
     <Card>
       <CardHeader>
         <CardTitle>AI Providers</CardTitle>
@@ -697,7 +814,172 @@
         </div>
       </CardContent>
     </Card>
-  </div>
+  {:else if activeTab === 'models'}
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div class="md:col-span-1">
+        <Card>
+          <CardHeader>
+            <CardTitle>Providers</CardTitle>
+            <CardDescription>Select a provider</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div class="space-y-2">
+              <Button 
+                variant={!selectedProviderId ? 'secondary' : 'ghost'} 
+                class="w-full justify-start" 
+                on:click={() => selectedProviderId = null}
+              >
+                All Models
+              </Button>
+              {#each providers as provider (provider.id)}
+                <Button 
+                  variant={selectedProviderId === provider.id ? 'secondary' : 'ghost'} 
+                  class="w-full justify-start" 
+                  on:click={() => selectedProviderId = provider.id}
+                >
+                  {provider.name}
+                </Button>
+              {/each}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div class="md:col-span-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Models</CardTitle>
+            <CardDescription>
+              {#if selectedProviderId}
+                Models for {providers.find(p => p.id === selectedProviderId)?.name || 'selected provider'}
+              {:else}
+                All configured models
+              {/if}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div class="space-y-4">
+              {#if filteredModels.length > 0}
+                <div class="grid gap-4 max-h-[400px] overflow-y-auto pr-2">
+                  {#each filteredModels as model (model.id)}
+                    <div class="border rounded-md p-4 flex justify-between items-center">
+                      <div>
+                        <h3 class="font-medium">{model.name}</h3>
+                        <p class="text-sm text-gray-500">{model.model}</p>
+                        <p class="text-xs text-gray-400">Provider: {model.provider?.name || 'N/A'}</p>
+                      </div>
+                      <div class="flex gap-2">
+                        <Button variant="destructive" size="sm" on:click={() => deleteModel(model.id)}>
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              {:else if !selectedProviderId}
+                 <p class="text-center text-gray-500 py-4">Select a provider to see its models.</p>
+              {:else}
+                <p class="text-center text-gray-500 py-4">No models configured for this provider.</p>
+              {/if}
+            </div>
+          </CardContent>
+          {#if selectedProviderId}
+          <CardFooter class="pt-4">
+             <Button on:click={discoverModels} disabled={isTestingKey} class="w-full">
+                {#if isTestingKey}
+                  <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Discovering...
+                {:else}
+                  Update Models from Provider
+                {/if}
+              </Button>
+          </CardFooter>
+          {/if}
+        </Card>
+
+
+
+        {#if showCustomModelForm}
+           <div class="mt-6">
+             <h3 class="text-lg font-medium mb-2">Add Custom Model</h3>
+              <Card>
+                <CardContent class="pt-6">
+                  <p class="text-sm text-gray-600 mb-4">Could not fetch models automatically. You can add a custom model instead.</p>
+                  <form on:submit|preventDefault={(e) => {
+                    const formData = new FormData(e.target);
+                    const name = formData.get('name');
+                    const modelId = formData.get('modelId');
+                    if (name && modelId) {
+                      addModel({ providerId: selectedProviderId, name, model: modelId });
+                      e.target.reset();
+                    }
+                  }} class="space-y-4">
+                    <div>
+                      <Label for="custom-model-name">Model Name</Label>
+                      <Input id="custom-model-name" name="name" placeholder="e.g., My Custom GPT-4" required />
+                    </div>
+                    <div>
+                      <Label for="custom-model-id">Model ID</Label>
+                      <Input id="custom-model-id" name="modelId" placeholder="e.g., gpt-4-custom" required />
+                    </div>
+                    <Button type="submit" class="w-full">Add Custom Model</Button>
+                  </form>
+                </CardContent>
+              </Card>
+           </div>
+        {/if}
+      </div>
+    </div>
+  {/if}
+
+  {#if showDiscoveredModelsDialog}
+    <DialogPrimitive.Root bind:open={showDiscoveredModelsDialog}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm" />
+        <div class="fixed inset-0 z-50 flex items-center justify-center">
+          <DialogPrimitive.Content class="bg-background fixed z-50 grid w-full max-w-lg gap-4 border bg-background p-6 shadow-lg sm:rounded-lg">
+            <div class="flex flex-col space-y-1.5">
+              <h2 class="text-lg font-semibold">Discovered Models</h2>
+              <p class="text-sm text-muted-foreground">
+                Found {discoveredModelsForProvider.length} new models available from the provider.
+              </p>
+            </div>
+            
+            <div class="grid gap-4 max-h-[400px] overflow-y-auto pr-2 mt-4">
+              {#each discoveredModelsForProvider as discoveredModel (discoveredModel.id)}
+                <div class="border rounded-md p-4 flex justify-between items-center">
+                  <div>
+                    <h4 class="font-medium">{discoveredModel.name}</h4>
+                    <p class="text-sm text-gray-500">{discoveredModel.id}</p>
+                  </div>
+                  <Button size="sm" on:click={() => addModel({ providerId: selectedProviderId, name: discoveredModel.name, model: discoveredModel.id })}>
+                    Add
+                  </Button>
+                </div>
+              {/each}
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" on:click={() => { showDiscoveredModelsDialog = false; }}>
+                Close
+              </Button>
+            </div>
+            
+            <button
+              class="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
+              on:click={() => showDiscoveredModelsDialog = false}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              <span class="sr-only">Close</span>
+            </button>
+          </DialogPrimitive.Content>
+        </div>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
+  {/if}
 
   {#if showProviderDialog}
     <DialogPrimitive.Root bind:open={showProviderDialog}>
