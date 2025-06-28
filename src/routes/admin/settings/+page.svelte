@@ -51,10 +51,26 @@
   let showCustomModelForm = false;
   let showDiscoveredModelsDialog = false;
   let currentProviderForDiscovery = null;
+  let selectedDiscoveredProvider = null;
 
   $: filteredModels = selectedProviderId
     ? models.filter(m => m.providerId === selectedProviderId)
     : models;
+
+  $: groupedDiscoveredModels = (discoveredModelsForProvider.length > 30 && currentProviderForDiscovery?.type === 'openai' && currentProviderForDiscovery?.baseUrl.includes('openrouter'))
+    ? discoveredModelsForProvider.reduce((acc, model) => {
+        const providerName = model.id.split('/')[0];
+        if (!acc[providerName]) {
+          acc[providerName] = [];
+        }
+        acc[providerName].push(model);
+        return acc;
+      }, {})
+    : null;
+
+  $: if (showDiscoveredModelsDialog && groupedDiscoveredModels && !selectedDiscoveredProvider) {
+    selectedDiscoveredProvider = Object.keys(groupedDiscoveredModels)[0];
+  }
 
   async function discoverModels() {
     if (!selectedProviderId) return;
@@ -743,7 +759,7 @@
 
 </script>
 
-<div class="max-w-5xl mx-auto px-4 py-8">
+<div class="max-w-5xl mx-auto px-4 py-8 h-full overflow-y-auto">
   <div class="mb-8">
     <h1 class="text-2xl font-bold mb-2">Admin Settings</h1>
     <p class="text-gray-600">Manage LLM providers and models</p>
@@ -847,20 +863,35 @@
 
       <div class="md:col-span-3">
         <Card>
-          <CardHeader>
-            <CardTitle>Models</CardTitle>
-            <CardDescription>
-              {#if selectedProviderId}
-                Models for {providers.find(p => p.id === selectedProviderId)?.name || 'selected provider'}
-              {:else}
-                All configured models
-              {/if}
-            </CardDescription>
+          <CardHeader class="flex flex-row items-center justify-between">
+            <div class="space-y-1">
+              <CardTitle>Models</CardTitle>
+              <CardDescription>
+                {#if selectedProviderId}
+                  Models for {providers.find(p => p.id === selectedProviderId)?.name || 'selected provider'}
+                {:else}
+                  All configured models
+                {/if}
+              </CardDescription>
+            </div>
+            {#if selectedProviderId}
+              <Button on:click={discoverModels} disabled={isTestingKey}>
+                {#if isTestingKey}
+                  <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Updating...
+                {:else}
+                  Update
+                {/if}
+              </Button>
+            {/if}
           </CardHeader>
           <CardContent>
             <div class="space-y-4">
               {#if filteredModels.length > 0}
-                <div class="grid gap-4 max-h-[400px] overflow-y-auto pr-2">
+                <div class="grid gap-4 pr-2">
                   {#each filteredModels as model (model.id)}
                     <div class="border rounded-md p-4 flex justify-between items-center">
                       <div>
@@ -883,21 +914,6 @@
               {/if}
             </div>
           </CardContent>
-          {#if selectedProviderId}
-          <CardFooter class="pt-4">
-             <Button on:click={discoverModels} disabled={isTestingKey} class="w-full">
-                {#if isTestingKey}
-                  <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Discovering...
-                {:else}
-                  Update Models from Provider
-                {/if}
-              </Button>
-          </CardFooter>
-          {/if}
         </Card>
 
 
@@ -940,7 +956,7 @@
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm" />
         <div class="fixed inset-0 z-50 flex items-center justify-center">
-          <DialogPrimitive.Content class="bg-background fixed z-50 grid w-full max-w-lg gap-4 border bg-background p-6 shadow-lg sm:rounded-lg">
+          <DialogPrimitive.Content class="bg-background fixed z-50 grid w-full max-w-4xl h-[80vh] gap-4 border bg-background p-6 shadow-lg sm:rounded-lg flex flex-col">
             <div class="flex flex-col space-y-1.5">
               <h2 class="text-lg font-semibold">Discovered Models</h2>
               <p class="text-sm text-muted-foreground">
@@ -948,22 +964,49 @@
               </p>
             </div>
             
-            <div class="grid gap-4 max-h-[400px] overflow-y-auto pr-2 mt-4">
-              {#each discoveredModelsForProvider as discoveredModel (discoveredModel.id)}
-                <div class="border rounded-md p-4 flex justify-between items-center">
-                  <div>
-                    <h4 class="font-medium">{discoveredModel.name}</h4>
-                    <p class="text-sm text-gray-500">{discoveredModel.id}</p>
-                  </div>
-                  <Button size="sm" on:click={() => addModel({ providerId: selectedProviderId, name: discoveredModel.name, model: discoveredModel.id })}>
-                    Add
-                  </Button>
+            <div class="flex-grow flex flex-row gap-6 overflow-hidden">
+              {#if groupedDiscoveredModels}
+                <!-- Left Sidebar -->
+                <div class="w-1/4 border-r pr-4 overflow-y-auto">
+                  <h4 class="font-semibold text-lg mb-2 sticky top-0 bg-background">Providers</h4>
+                  {#each Object.keys(groupedDiscoveredModels) as providerName}
+                    <button
+                      class="w-full text-left p-2 rounded-md text-sm mb-1"
+                      class:bg-muted={selectedDiscoveredProvider === providerName}
+                      on:click={() => selectedDiscoveredProvider = providerName}
+                    >
+                      {providerName}
+                    </button>
+                  {/each}
                 </div>
-              {/each}
+
+                <!-- Right Content -->
+                <div class="flex-1 overflow-y-auto">
+                  {#if selectedDiscoveredProvider}
+                    <div class="space-y-2">
+                      {#each groupedDiscoveredModels[selectedDiscoveredProvider] as model (model.id)}
+                        <div class="flex items-center justify-between p-2 border rounded-md">
+                          <span class="text-sm">{model.name || model.id}</span>
+                          <Button size="sm" on:click={() => addModel({ providerId: selectedProviderId, name: model.name, model: model.id })}>Add</Button>
+                        </div>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+              {:else}
+                <div class="grid gap-2 mt-4 max-h-[60vh] overflow-y-auto w-full">
+                  {#each discoveredModelsForProvider as model (model.id)}
+                    <div class="flex items-center justify-between p-2 border rounded-md">
+                      <span>{model.name || model.id}</span>
+                      <Button size="sm" on:click={() => addModel({ providerId: selectedProviderId, name: model.name, model: model.id })}>Add</Button>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
             </div>
 
-            <div class="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" on:click={() => { showDiscoveredModelsDialog = false; }}>
+            <div class="flex justify-end gap-2 pt-4 border-t mt-auto">
+              <Button type="button" variant="outline" on:click={() => { showDiscoveredModelsDialog = false; selectedDiscoveredProvider = null; }}>
                 Close
               </Button>
             </div>
