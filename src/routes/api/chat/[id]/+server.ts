@@ -4,8 +4,18 @@ import { streamResponse } from "$lib/utils/stream";
 import { json } from '@sveltejs/kit';
 import { OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL } from '$env/static/private';
 
+import fetch from 'node-fetch';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+
+
 const prisma = new PrismaClient();
 const MAX_HISTORY_MESSAGES = 10;
+
+
+
+// 从环境变量读取代理地址（示例：http://user:pass@host:port）
+const proxyUrl = process.env.HTTPS_PROXY || 'http://your-proxy-server:8080';
+const agent = new HttpsProxyAgent(proxyUrl); // 自动适配 HTTP/HTTPS
 
 // export const POST: RequestHandler = async ({ request, params, locals }) => {
 //   const { user } =  locals.auth;
@@ -130,6 +140,7 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`;
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.0,
     }),
+     agent, // 关键：注入代理配置
   });
 
   if (!response.ok) {
