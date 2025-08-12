@@ -100,13 +100,13 @@
     
     // Process math expressions with KaTeX BEFORE markdown processing
     if (typeof window !== 'undefined' && (window as any).katex) {
-      console.log('Processing math with KaTeX for content:', processed.substring(0, 100));
+     // console.log('Processing math with KaTeX for content:', processed.substring(0, 100));
       
       // Handle display math ($$...$$) first
       processed = processed.replace(/\$\$([^$]+?)\$\$/g, (match: string, math: string) => {
         try {
           const cleanMath = math.trim();
-          console.log('Rendering display math:', cleanMath);
+         // console.log('Rendering display math:', cleanMath);
           const rendered = (window as any).katex.renderToString(cleanMath, { 
             displayMode: true,
             throwOnError: false

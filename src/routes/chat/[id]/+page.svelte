@@ -133,6 +133,14 @@
     }
   ];
 
+  let selectedEffort: 'none' | 'low' | 'medium' | 'high' = 'none';
+  const effortOptions = [
+    { value: 'none', label: 'None' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' }
+  ];
+
   $: console.log('Current webSearchMode:', webSearchMode); // 响应式调试日志
 
   async function analyzeSearchResults(results: any[], originalQuery: string) {
@@ -169,7 +177,8 @@ Important: Keep the response concise and ensure it's valid JSON.`;
         temperature: 0.3,
         max_tokens: 2000,
         system: "You are a search results analyzer. Return only valid JSON, no explanation or formatting.",
-        isSearchAnalysis: true // Flag to use search model
+        isSearchAnalysis: true, // Flag to use search model
+        effort: selectedEffort
       })
     });
 
@@ -664,6 +673,8 @@ ${recentMessages}
     messageInput = "";
     localStorage.removeItem(`draft_${$page.params.id}`);
 
+    console.log('Selected Effort:', selectedEffort);
+
     try {
       const tempUserMsgId = Date.now().toString();
       const tempAssistantMsgId = (Date.now() + 1).toString();
@@ -681,7 +692,8 @@ ${recentMessages}
         content: "",
         createdAt: new Date(),
         modelInfo: $selectedModel ? getFullModelName($selectedModel) : '',  // 添加模型信息
-        tokenCount: 0  // 初始化token计数
+        tokenCount: 0 , // 初始化token计数
+        effort: selectedEffort
       }];
 
       let content = userMessage;
@@ -819,6 +831,7 @@ ${formattedResults}
           // Use moderate temperature for final response to balance creativity and accuracy
           temperature: 0.7,
           max_tokens: 4000,
+          effort: selectedEffort
         }),
         signal: abortController.signal
       });
@@ -1121,6 +1134,24 @@ ${formattedResults}
           <div class="h-5 border-l border-gray-200 mx-1"></div>
           <ModelSelector showFullName={true} />
         </div>
+
+
+        <div class="ml-2">
+          <label class="sr-only" for="effort-select">Effort</label>
+          <div class="relative inline-block">
+            <select
+              id="effort-select"
+              bind:value={selectedEffort}
+              class="text-sm md:text-sm rounded-md border border-gray-200 bg-white px-2 py-1"
+              title="Select effort level (none, low, medium, high)"
+            >
+              {#each effortOptions as opt}
+                <option value={opt.value}>{opt.label}</option>
+              {/each}
+            </select>
+          </div>
+        </div>
+
         <!-- Message input form -->
         <form on:submit|preventDefault={handleSubmit} class="flex items-center gap-2 max-w-full">
           <textarea

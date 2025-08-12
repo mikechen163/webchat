@@ -158,8 +158,60 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`;
 
 export async function POST({ request, params, fetch, locals }) {
   try {
-    const { content, modelId, temperature = 0.7, max_tokens,   isSearchAnalysis = false } = await request.json();
+  // const { content, modelId, temperature = 0.7, max_tokens,   isSearchAnalysis = false } = await request.json();
     
+
+    // Read effort from the client. allowed values: 'none' | 'low' | 'medium' | 'high'
+    // Default to 'none' if not provided or invalid.
+    const body = await request.json();
+    const {
+      content,
+      modelId,
+      temperature = 0.7,
+      max_tokens,
+      isSearchAnalysis = false
+    } = body || {};
+
+    // Validate and normalize effort
+    const ALLOWED_EFFORTS = ['none', 'low', 'medium', 'high'] as const;
+    let effort: typeof ALLOWED_EFFORTS[number] = 'none';
+    if (body && typeof body.effort === 'string' && ALLOWED_EFFORTS.includes(body.effort as any)) {
+      effort = body.effort as typeof ALLOWED_EFFORTS[number];
+    } else {
+      // if client provided invalid value, log and fallback to 'none'
+      if (body && 'effort' in body && body.effort !== undefined) {
+        console.warn('Invalid effort value provided, falling back to none:', body.effort);
+      }
+    }
+
+   // console.log('Effort value set to:', effort);
+
+    // Helper: decide whether this model/provider should receive an effort parameter.
+    // Current heuristic:
+    // - OpenAI endpoints (api.openai.com) + models starting with 'o3' or 'o4' => supports effort
+    // - OpenRouter (or other proxying providers) that expose OpenAI-style models can also be matched by baseUrl contains 'openrouter'
+    // Future: replace with explicit modelConfig.supportsEffort boolean in DB or provider adapter capability discovery.
+    function supportsEffortForModel(cfg: any): boolean {
+      if (!cfg) return false;
+      const base = (cfg.baseUrl || '').toLowerCase();
+      const modelName = (cfg.model || '').toLowerCase();
+      const isOpenAI = base.includes('api.openai.com');
+      const isOpenRouter = base.includes('openrouter') || base.includes('api.openrouter.com') || base.includes('openrouter.ai');
+      const isO3O4 = modelName.includes('o3') || modelName.includes('o4');
+      // Add more heuristics if needed
+      return (isOpenAI || isOpenRouter) && isO3O4;
+    }
+
+    // Map generic effort to provider-specific param. For now we map to 'reasoning_effort' which
+    // OpenAI O3/O4 accepts. Returns undefined if effort should be omitted.
+    function mapEffortToProviderParam(effortVal: typeof ALLOWED_EFFORTS[number]) {
+      if (!effortVal || effortVal === 'none') return undefined;
+      // Direct mapping for now; change if provider requires different naming/values.
+      // e.g. 'low' -> 'low', 'medium' -> 'medium', 'high' -> 'high'
+      return effortVal;
+    }
+
+
     // 检查是否是系统指令
     const isSystemPrompt = content.startsWith('Analyze these search results for the query') ||
                           content.startsWith('你是一个有帮助的助手，请基于前面提供的搜索') ||
@@ -285,10 +337,19 @@ export async function POST({ request, params, fetch, locals }) {
 
      let response
     // Check if it's OpenAI base URL and O1/O3 model
-    const isOpenAIUrl = modelConfig.baseUrl.includes('api.openai.com');
-    const isO1O3Model = modelConfig.model.startsWith('o4') || modelConfig.model.startsWith('o3');
+    //const isOpenAIUrl = modelConfig.baseUrl.includes('api.openai.com');
+    //const isO1O3Model = modelConfig.model.startsWith('o4') || modelConfig.model.startsWith('o3');
 
-    if (isOpenAIUrl && isO1O3Model) {
+        // Decide support for effort and compute mapped parameter
+        const isOpenAIUrl = (modelConfig.baseUrl || '').includes('api.openai.com');
+        const isO1O3Model = (modelConfig.model || '').includes('o4') || (modelConfig.model || '').includes('o3');
+        const modelSupportsEffort = supportsEffortForModel(modelConfig);
+        const mappedEffort = mapEffortToProviderParam(effort);
+        const isOpenRouterUrl = (modelConfig.baseUrl || '').includes('openrouter');
+      
+
+   
+    if ( isO1O3Model) {
       // Format messages for O1/O3 models
       const formattedMessages = messages.map(msg => ({
         role: msg.role,
@@ -299,15 +360,28 @@ export async function POST({ request, params, fetch, locals }) {
       }));
 
       // Special request body for O1/O3 models
-      const requestBody = {
+      //const requestBody = {
+
+       const requestBody: any = {  
+       
         model: modelConfig.model,
         messages: formattedMessages,
         response_format: {
           type: 'text'
         },
-        reasoning_effort: 'high',
+
+      
+       // reasoning_effort: 'high',
+            // Insert reasoning_effort only when the model/provider supports it and client requested non-none
+            ...(modelSupportsEffort && mappedEffort ? { reasoning_effort: mappedEffort } : {}),
+          
         stream: true
       };
+   
+
+      
+
+     // console.log('Request Body:', requestBody);
        response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
