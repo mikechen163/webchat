@@ -23,7 +23,8 @@
     
     // Remove reasoning sections if they exist
     if (hasReasoning) {
-      processed = content.replace(/<tool_call><tool_call>[\s\S]*?<\/think>/g, '');
+      processed = content.replace(/<think>[\s\S]*?<\/think>/g, '');
+      //processed = content.replace(/<tool_call><tool_call>[\s\S]*?<\/think>/g, '');
     }
     
     // Note: For a more advanced solution, we could also process KaTeX and Markdown here

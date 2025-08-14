@@ -1133,7 +1133,7 @@ ${formattedResults}
           
           <div class="h-5 border-l border-gray-200 mx-1"></div>
           <ModelSelector showFullName={true} />
-        </div>
+      
 
 
         <div class="ml-2">
@@ -1151,6 +1151,7 @@ ${formattedResults}
             </select>
           </div>
         </div>
+      </div>
 
         <!-- Message input form -->
         <form on:submit|preventDefault={handleSubmit} class="flex items-center gap-2 max-w-full">

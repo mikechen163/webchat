@@ -197,7 +197,7 @@ export async function POST({ request, params, fetch, locals }) {
       const modelName = (cfg.model || '').toLowerCase();
       const isOpenAI = base.includes('api.openai.com');
       const isOpenRouter = base.includes('openrouter') || base.includes('api.openrouter.com') || base.includes('openrouter.ai');
-      const isO3O4 = modelName.includes('o3') || modelName.includes('o4');
+      const isO3O4 = modelName.includes('o3') || modelName.includes('o4') || modelName.includes('gpt-5');
       // Add more heuristics if needed
       return (isOpenAI || isOpenRouter) && isO3O4;
     }
@@ -331,6 +331,7 @@ export async function POST({ request, params, fetch, locals }) {
       command: content.substring(0, 50),
       baseUrl: modelConfig.baseUrl,
       model: modelConfig.model,
+      effort: effort,
       temperature,
       ...(max_tokens && { max_tokens })
     });
@@ -342,7 +343,7 @@ export async function POST({ request, params, fetch, locals }) {
 
         // Decide support for effort and compute mapped parameter
         const isOpenAIUrl = (modelConfig.baseUrl || '').includes('api.openai.com');
-        const isO1O3Model = (modelConfig.model || '').includes('o4') || (modelConfig.model || '').includes('o3');
+        const isO1O3Model = (modelConfig.model || '').includes('o4') || (modelConfig.model || '').includes('o3') || (modelConfig.model || '').includes('gpt-5');
         const modelSupportsEffort = supportsEffortForModel(modelConfig);
         const mappedEffort = mapEffortToProviderParam(effort);
         const isOpenRouterUrl = (modelConfig.baseUrl || '').includes('openrouter');
