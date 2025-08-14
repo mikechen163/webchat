@@ -17,8 +17,25 @@
   let showReasoning = true;
   let katexLoaded = false;
 
+  // Function to get the processed content without reasoning sections for copying
+  function getProcessedContentForCopy(): string {
+    let processed = content;
+    
+    // Remove reasoning sections if they exist
+    if (hasReasoning) {
+      processed = content.replace(/<tool_call><tool_call>[\s\S]*?<\/think>/g, '');
+    }
+    
+    // Note: For a more advanced solution, we could also process KaTeX and Markdown here
+    // to generate plain text that resembles the rendered HTML more closely.
+    // However, for now, removing reasoning sections is the primary goal.
+    
+    return processed.trim();
+  }
+
   function copyToClipboard() {
-    navigator.clipboard.writeText(content);
+    const contentToCopy = getProcessedContentForCopy();
+    navigator.clipboard.writeText(contentToCopy);
     copied = true;
     setTimeout(() => copied = false, 2000);
   }
