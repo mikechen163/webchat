@@ -429,7 +429,9 @@ export async function POST({ request, params, fetch, locals }) {
           let totalTokens = 0;
           let currentMessage = '';
           
-        
+       
+          const decoder = new TextDecoder('utf-8'); // 在外层复用
+          const encoder = new TextEncoder(); // 如果需要把字符串转为 Uint8Array 再 enqueue
 
           while (true) {
             const { done, value } = await reader.read();
@@ -473,8 +475,20 @@ export async function POST({ request, params, fetch, locals }) {
               break;
             }
 
-            buffer += new TextDecoder().decode(value);
-            const lines = buffer.split('\n');
+              // value 可能是 Uint8Array 或 ArrayBuffer
+  const chunk = value instanceof Uint8Array ? value : new Uint8Array(value);
+  // 流式解码，避免在 chunk 边界处插入替代字符
+  buffer += decoder.decode(chunk, { stream: true });
+
+  // 可选：调试每个 chunk 的字节（16 进制）
+  // console.log('chunk hex:', Array.from(chunk).map(b => b.toString(16).padStart(2,'0')).join(' '));
+
+  // 以兼容 CRLF/LF 的方式切分行
+  const lines = buffer.split(/\r?\n/);
+
+
+           // buffer += new TextDecoder().decode(value);
+           // const lines = buffer.split('\n');
             buffer = lines.pop() || '';
 
             for (const line of lines) {
