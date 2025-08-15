@@ -642,6 +642,7 @@ ${recentMessages}
   }
 
   let abortController: AbortController | null = null;
+  let checkingDir = false;
 
   // Add function to fetch user preferences
   async function getUserPreferences() {
@@ -662,6 +663,31 @@ ${recentMessages}
     }
     
     return { language: 'en' }; // Default fallback
+  }
+
+  async function checkDirectory() {
+    if (checkingDir) return;
+    checkingDir = true;
+    try {
+      const res = await fetch('/api/mcp/listdir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: '.' }) });
+      if (!res.ok) throw new Error('Tool request failed');
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Tool returned error');
+
+      // Build a prompt for the assistant to summarize and format the directory listing
+      const prompt = `Please summarize the project root directory listing below. Group files and top-level directories, mention noteworthy files (package.json, README.md, src, server, prisma, etc.), and provide a brief one-paragraph summary of the repo purpose.\n\nDirectory listing:\n${data.items.map((i: string) => `- ${i}`).join('\n')}`;
+
+      // Insert into message input and send as user message
+      messageInput = prompt;
+      // Trigger normal submit flow
+      await handleSubmit();
+    } catch (e) {
+      showToast({ title: 'Error', description: String(e), type: 'error' });
+    } finally {
+      checkingDir = false;
+  
+      checkingDir = false;
+    }
   }
 
   async function handleSubmit() {
@@ -1054,7 +1080,7 @@ ${formattedResults}
         on:scroll={handleScroll}
       >
         <div class="w-full md:max-w-3xl lg:max-w-4xl mx-auto px-3 md:px-4 py-3 md:py-4 space-y-4">
-          {#each messages as message (message.id)}
+          {#each messages as message, i (message.id ?? i)}
             <ChatBubble 
               role={message.role}
               content={message.content}
@@ -1151,6 +1177,8 @@ ${formattedResults}
             </select>
           </div>
         </div>
+        
+  <!-- Tool execution is now handled server-side (model can call execute_python tool) -->
       </div>
 
         <!-- Message input form -->
@@ -1187,7 +1215,7 @@ ${formattedResults}
               variant="default"
             >
               {#if sending}
-                <div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                <div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
               {:else}
                 <ArrowUp class="h-5 w-5 md:h-6 md:w-6" />
               {/if}

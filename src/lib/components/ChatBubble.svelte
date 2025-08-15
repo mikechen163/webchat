@@ -166,7 +166,21 @@
     return html;
   })(katexLoaded); // Pass the reactive variable here
 
-  $: formattedTime = timestamp.toLocaleTimeString();
+  $: formattedTime = (() => {
+    try {
+      if (!timestamp) return '';
+      const d = timestamp instanceof Date ? timestamp : new Date(timestamp);
+      if (isNaN(d.getTime())) return '';
+      // Some environments may not support toLocaleTimeString fully; guard it
+      try {
+        return d.toLocaleTimeString();
+      } catch (e) {
+        return d.toISOString().split('T')[1].split('.')[0];
+      }
+    } catch (e) {
+      return '';
+    }
+  })();
 </script>
 
 <div class="flex gap-4 {role === 'assistant' ? 'bg-gray-50' : ''} p-4 rounded group">

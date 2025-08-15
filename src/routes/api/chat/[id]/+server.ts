@@ -321,7 +321,18 @@ export async function POST({ request, params, fetch, locals }) {
       });
     }
 
-    const messages = [...history, { role: 'user', content }];
+    // Describe available tools to the model in a strict, machine-readable way.
+    const toolDescription = `Available tools:\n\n` +
+      `1) execute_python: Executes Python code on a trusted test host.\n` +
+      `   - Call format (STRICT JSON only, inside your final assistant message, no surrounding text):\n` +
+      `     {"tool":"execute_python","code":"<python source as string>","timeout":5,"cwd":null}\n` +
+      `   - The model MUST output only the JSON object (no additional commentary) when invoking the tool.\n` +
+      `   - After you call the tool, the server will execute the code and append the tool output into the conversation.\n` +
+      `Example (what you should output to run a script that lists the repo):\n` +
+      `{"tool":"execute_python","code":"import os; print('FILES:\\n' + '\\n'.join(os.listdir('.')))","timeout":5}`;
+
+    // Prepend the system tool registration so the model is aware of available tools.
+    const messages = [{ role: 'system', content: toolDescription }, ...history, { role: 'user', content }];
     let fullAssistantMessage = '';
     let fullReasoningContent = '';
     let reason_content_flag = false;
@@ -354,10 +365,17 @@ export async function POST({ request, params, fetch, locals }) {
 
    
     if (modelConfig.provider?.type === 'mcp') {
+      // When using MCP providers, include a system/tool registration message so the model knows available tools
+      const toolDescription = `TOOLS:\n- execute_python: Executes Python code. Call with JSON: {"tool":"execute_python","code":"<python code>","timeout":<seconds>,"cwd":null}. Return value should be text output.`;
+      const mcpMessages = [
+        { role: 'system', content: toolDescription },
+        ...messages
+      ];
+
       // Call MCP provider via adapter (mocked for tests)
       response = await callMcpProvider(
         modelConfig.provider,
-        messages
+        mcpMessages
       );
     } else if ( isO1O3Model) {
       // Format messages for O1/O3 models
@@ -453,16 +471,53 @@ export async function POST({ request, params, fetch, locals }) {
               
               // Remove <think>...</think> content before saving
               const filteredMessage = fullAssistantMessage.replace(/<think>.*?<\/think>/g, '');
-              
-              if (!filteredMessage.includes('"completeness":') && !filteredMessage.includes('"requiresSearch":')) {
+
+              // Detect a tool call encoded as JSON containing a "tool" field (example: {"tool":"execute_python","code":"..."})
+              let finalMessageToSave = filteredMessage;
+              try {
+                const toolJsonMatch = filteredMessage.match(/\{[\s\S]*?"tool"[\s\S]*?\}/);
+                if (toolJsonMatch) {
+                  try {
+                    const toolCall = JSON.parse(toolJsonMatch[0]);
+                    if (toolCall.tool === 'execute_python' && toolCall.code) {
+                      // Execute the python code via local MCP tool endpoint
+                      const mcpUrl = process.env.LOCAL_MCP_URL || 'http://127.0.0.1:33333';
+                      const execRes = await fetch(`${mcpUrl}/tools/execute_python`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code: toolCall.code, timeout: toolCall.timeout || 5, cwd: toolCall.cwd || null })
+                      });
+                      const execData = await execRes.json().catch(() => null);
+                      const execOutput = execData?.result || execData?.error || JSON.stringify(execData);
+                      const toolOutputText = `\n\n[Tool execute_python output]:\n${execOutput}\n`;
+
+                      // Stream the tool output to the client as continuation
+                      try {
+                        controller.enqueue(toolOutputText);
+                      } catch (e) {
+                        console.error('Failed to enqueue tool output:', e);
+                      }
+
+                      // Append tool output to message to be saved
+                      finalMessageToSave = filteredMessage + toolOutputText;
+                    }
+                  } catch (e) {
+                    console.error('Failed to parse tool JSON:', e);
+                  }
+                }
+              } catch (e) {
+                console.error('Tool detection error:', e);
+              }
+
+              if (!finalMessageToSave.includes('"completeness":') && !finalMessageToSave.includes('"requiresSearch":')) {
                 await prisma.message.create({
                   data: {
                     sessionId: params.id,
                     role: "assistant",
-                    content: filteredMessage
+                    content: finalMessageToSave
                   }
                 });
-            
+
                 // 检查是否需要生成标题
                 const messageCount = await prisma.message.count({
                   where: { sessionId: params.id }
