@@ -13,9 +13,13 @@
 		"format": "prettier --write .",
 		"lint": "prettier --check .",
 		"test:e2e": "playwright test",
-		"test": "npm run test:e2e"
+		"test:unit": "vitest",
+		"test": "npm run test:unit && npm run test:e2e"
 	},
 	"devDependencies": {
+	"vitest": "^1.0.0",
+	"@types/node": "^20.0.0",
+	"@types/ws": "^8.5.5",
 		"@playwright/test": "^1.49.1",
 		"@sveltejs/adapter-auto": "^4.0.0",
 		"@sveltejs/kit": "^2.17.3",
@@ -52,6 +56,7 @@
 		"marked": "^15.0.7",
 		"marked-katex-extension": "^5.1.5",
 		"node-fetch": "^3.3.2",
+		"ws": "^8.13.0",
 		"prisma": "^5.22.0",
 		"shadcn-svelte": "^0.14.0"
 		

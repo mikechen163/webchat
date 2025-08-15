@@ -1,5 +1,6 @@
 import { error, type RequestHandler } from "@sveltejs/kit";
 import { PrismaClient } from "@prisma/client";
+import { callMcpProvider } from '$lib/mcp/adapter';
 import { streamResponse } from "$lib/utils/stream";
 import { json } from '@sveltejs/kit';
 import { OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL } from '$env/static/private';
@@ -245,7 +246,8 @@ export async function POST({ request, params, fetch, locals }) {
       where: { 
         id: preferredModelId,
         enabled: true 
-      }
+      },
+      include: { provider: true }
     });
 
     if (!modelConfig) {
@@ -272,7 +274,8 @@ export async function POST({ request, params, fetch, locals }) {
         where: { 
           ...(defaultModelId ? { id: defaultModelId } : {}),
           enabled: true 
-        }
+        },
+        include: { provider: true }
       });
       
       console.log('Falling back to default model:', defaultModel);
@@ -284,7 +287,7 @@ export async function POST({ request, params, fetch, locals }) {
       modelConfig = defaultModel;
     }
 
-    // 获取历史消息并保存用户消息
+  // 获取历史消息并保存用户消息
     const history = await prisma.message.findMany({
       where: { sessionId: params.id },
       orderBy: { createdAt: 'asc' },
@@ -327,7 +330,7 @@ export async function POST({ request, params, fetch, locals }) {
 
     
     
-    console.log('Making API request:', {
+  console.log('Making API request:', {
       command: content.substring(0, 50),
       baseUrl: modelConfig.baseUrl,
       model: modelConfig.model,
@@ -350,7 +353,13 @@ export async function POST({ request, params, fetch, locals }) {
       
 
    
-    if ( isO1O3Model) {
+    if (modelConfig.provider?.type === 'mcp') {
+      // Call MCP provider via adapter (mocked for tests)
+      response = await callMcpProvider(
+        modelConfig.provider,
+        messages
+      );
+    } else if ( isO1O3Model) {
       // Format messages for O1/O3 models
       const formattedMessages = messages.map(msg => ({
         role: msg.role,
@@ -394,7 +403,7 @@ export async function POST({ request, params, fetch, locals }) {
       });
      
 
-    } else {
+  } else {
       // Original request configuration remains for other models
     
      response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
@@ -414,7 +423,7 @@ export async function POST({ request, params, fetch, locals }) {
     });
   }
 
-    if (!response.ok) {
+  if (!response.ok) {
       console.error('API response error:', response.status, response.statusText);
       throw new Error(`OpenAI API error: ${response.status}`);
     }
