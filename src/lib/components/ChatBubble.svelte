@@ -97,8 +97,24 @@
     setTimeout(() => copied = false, 2000);
   }
 
+   // 通用的拷贝到剪贴板并设置状态标记的函数
+ function copyTextToClipboard(text: string, setFlag: (v: boolean) => void) {
+   if (!text) return;
+   // 使用 Promise 接口，成功后设置状态并在 2s 后恢复
+   navigator.clipboard.writeText(text).then(() => {
+     setFlag(true);
+     setTimeout(() => setFlag(false), 2000);
+   }).catch((err) => {
+     console.error('Clipboard write failed', err);
+   });
+ }
+
+
+  //  function copyCode() { if (toolParsed?.code) copyTextToClipboard(toolParsed.code, v => copiedCode = v); }
+  //function copyResult() { if (toolParsed?.result) copyTextToClipboard(toolParsed.result, v => copiedResult = v); }
     function copyCode() { if (toolParsed?.code) copyTextToClipboard(toolParsed.code, v => copiedCode = v); }
   function copyResult() { if (toolParsed?.result) copyTextToClipboard(toolParsed.result, v => copiedResult = v); }
+  
 
 
   function toggleReasoning() {
@@ -274,7 +290,7 @@
           <div class="space-y-3">
             <div class="tool-block bg-gray-50 border border-gray-200 rounded p-3 relative">
               <div class="flex items-center justify-between mb-2">
-                <div class="text-xs text-gray-600">{'{"tool":"execute_python"} — code'}</div>
+                <div class="text-xs text-gray-600">{'code'}</div>
                 <button
                   class="p-1 rounded text-gray-500 hover:text-gray-700 focus:outline-none"
                   on:click={copyCode}
@@ -400,10 +416,23 @@
     margin: 0;
   }
 
-  /* Styles for the tool blocks and copy buttons */
-  .tool-block { position: relative; }
-  .tool-block pre { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace; }
-  .tool-block .text-xs { font-weight: 600; color: #4b5563; }
+  .tool-block {
+  position: relative;
+  font-size: 16px; /* 设置基准字体大小 */
+}
+
+.tool-block pre {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+  /* 继承 16px，也可单独设置 */
+}
+
+.tool-block .text-xs {
+  font-weight: 600;
+  color: #4b5563;
+  /* 如果你仍希望 .text-xs 是“小号字体”，可设为 12px 或 0.75rem */
+  /* font-size: 0.75rem; */
+}
 
   
   /* Style for reasoning sections */
