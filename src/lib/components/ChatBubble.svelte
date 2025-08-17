@@ -41,47 +41,82 @@
   // helper to parse execute_python tool messages
   function parseExecutePython(raw: string) {
     try {
-      if (!raw || !raw.trim().startsWith('{"tool":"execute_python"')) return null;
+      if (!raw) return null;
+      const startMarker = '{"tool":"execute_python"';
+      const startIdx = raw.indexOf(startMarker);
+      if (startIdx === -1) return null;
 
-      const marker = '--- stdout ---';
-      const idx = raw.indexOf(marker);
-      let head = raw;
-      let result = '';
-      if (idx !== -1) {
-        head = raw.slice(0, idx);
-        result = raw.slice(idx + marker.length).trim();
-      }
-
-      // Try to extract the "code" field content from the JSON-ish prefix.
-      // Handle common JSON escapes.
+      // Extract the code string by finding the "code": "...." value (respecting escaped quotes)
+      const codeKey = '"code":';
+      const codePos = raw.indexOf(codeKey, startIdx);
       let code = '';
-      const codeMatch = head.match(/"code"\s*:\s*"([\s\S]*)"\s*\}\s*$/) || head.match(/"code"\s*:\s*"([\s\S]*)"\s*$/);
-      if (codeMatch && codeMatch[1]) {
-        code = codeMatch[1];
-      } else {
-        const pos = head.indexOf('"code":');
-        if (pos !== -1) {
-          code = head.slice(pos + 7).trim();
-          // strip leading colon/quotes/braces
-          code = code.replace(/^\s*:\s*"/, '');
-          code = code.replace(/"\s*$/, '');
-        } else {
-          // fallback: take everything after first newline (best-effort)
-          const nl = head.indexOf('\n');
-          code = nl !== -1 ? head.slice(nl + 1).trim() : '';
+      let endQuoteIndex = -1;
+      if (codePos !== -1) {
+        // find the first quote after "code":
+        let q = raw.indexOf('"', codePos + codeKey.length);
+        if (q !== -1) {
+          q++; // first char of string
+          let sb = '';
+          let escaped = false;
+          for (let i = q; i < raw.length; i++) {
+            const ch = raw[i];
+            if (escaped) {
+              // keep the escape sequence as-is for now
+              sb += ch === 'n' ? '\\n' : ch === 't' ? '\\t' : ch;
+              escaped = false;
+              continue;
+            }
+            if (ch === '\\') {
+              escaped = true;
+              continue;
+            }
+            if (ch === '"') {
+              endQuoteIndex = i;
+              break;
+            }
+            sb += ch;
+          }
+          // decode common escapes
+          code = sb
+            .replace(/\\n/g, '\n')
+            .replace(/\\r/g, '\r')
+            .replace(/\\t/g, '\t')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\')
+            .trim();
         }
       }
 
-      // unescape common JSON escapes so code appears natural
-      code = code
-        .replace(/\\n/g, '\n')
-        .replace(/\\"/g, '"')
-        .replace(/\\t/g, '\t')
-        .replace(/\\\\/g, '\\')
-        .trim();
+      // Try to extract stdout/result. Support multiple marker formats.
+      let result = '';
+      const stdoutRegex = /(?:--- stdout ---|\[Tool execute_python output\]:)/i;
+      const stdoutMatch = raw.match(stdoutRegex);
+      if (stdoutMatch) {
+        let start = raw.indexOf(stdoutMatch[0]) + stdoutMatch[0].length;
+        result = raw.slice(start).trim();
+      } else if (endQuoteIndex !== -1) {
+        // fallback: take content after the code closing quote (best-effort)
+        result = raw.slice(endQuoteIndex + 1).trim();
+      } else {
+        result = raw.slice(startIdx).trim();
+      }
+
+      // Clean result:
+      // - Remove leading "RC=0," or "RC=0。" or similar
+      result = result.replace(/^\s*RC\s*=?\s*\d+\s*[,，]?\s*/i, '');
+      // - Remove trailing --- stderr --- and everything after it
+      const stderrIdx = result.indexOf('--- stderr ---');
+      if (stderrIdx !== -1) result = result.slice(0, stderrIdx).trim();
+      // - Remove leading bracketed labels like "[Tool ...]:" if still present
+      result = result.replace(/^\s*\[.*?\]\s*:?\s*/,'').trim();
+      // - Strip surrounding quotes if any accidental extra quotes
+      if ((result.startsWith('"') && result.endsWith('"')) || (result.startsWith('“') && result.endsWith('”'))) {
+        result = result.slice(1, -1).trim();
+      }
 
       return { code, result };
     } catch (e) {
+      console.error('parseExecutePython error', e);
       return null;
     }
   }
@@ -306,14 +341,18 @@
               <pre class="whitespace-pre-wrap text-sm"><code>{toolParsed.code}</code></pre>
             </div>
 
-            <div class="tool-block bg-gray-100 border border-gray-200 rounded p-3 relative">
-              <div class="flex items-center justify-between mb-2">
-                <div class="text-xs text-gray-600">Result</div>
+          <div class="tool-block bg-gray-200 border border-gray-200 rounded p-3 relative">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs text-gray-600">{'result'}</div>
+
+
+                  <!-- 按钮：提升可读性 -->
                 <button
-                  class="p-1 rounded text-gray-500 hover:text-gray-700 focus:outline-none"
-                  on:click={copyResult}
-                  aria-label="Copy result"
-                >
+                    class="p-1 rounded text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    on:click={copyResult}
+                    aria-label="Copy result"
+                  >
+
                   {#if copiedResult}
                     <Check class="h-4 w-4 text-green-500" />
                   {:else}
@@ -321,7 +360,7 @@
                   {/if}
                 </button>
               </div>
-              <pre class="whitespace-pre-wrap text-sm">{toolParsed.result}</pre>
+              <pre class="whitespace-pre-wrap text-sm text-gray-900">{toolParsed.result}</pre>
             </div>
           </div>
         {:else}
@@ -429,7 +468,7 @@
 
 .tool-block .text-xs {
   font-weight: 600;
-  color: #4b5563;
+  /*color: #4b5563; */
   /* 如果你仍希望 .text-xs 是“小号字体”，可设为 12px 或 0.75rem */
   /* font-size: 0.75rem; */
 }
