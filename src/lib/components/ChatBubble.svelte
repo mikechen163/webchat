@@ -17,6 +17,10 @@
   let showReasoning = true;
   let katexLoaded = false;
 
+    // new: per-block copy flags
+  let copiedCode = false;
+  let copiedResult = false;
+
   // Function to get the processed content without reasoning sections for copying
   function getProcessedContentForCopy(): string {
     let processed = content;
@@ -34,12 +38,68 @@
     return processed.trim();
   }
 
+  // helper to parse execute_python tool messages
+  function parseExecutePython(raw: string) {
+    try {
+      if (!raw || !raw.trim().startsWith('{"tool":"execute_python"')) return null;
+
+      const marker = '--- stdout ---';
+      const idx = raw.indexOf(marker);
+      let head = raw;
+      let result = '';
+      if (idx !== -1) {
+        head = raw.slice(0, idx);
+        result = raw.slice(idx + marker.length).trim();
+      }
+
+      // Try to extract the "code" field content from the JSON-ish prefix.
+      // Handle common JSON escapes.
+      let code = '';
+      const codeMatch = head.match(/"code"\s*:\s*"([\s\S]*)"\s*\}\s*$/) || head.match(/"code"\s*:\s*"([\s\S]*)"\s*$/);
+      if (codeMatch && codeMatch[1]) {
+        code = codeMatch[1];
+      } else {
+        const pos = head.indexOf('"code":');
+        if (pos !== -1) {
+          code = head.slice(pos + 7).trim();
+          // strip leading colon/quotes/braces
+          code = code.replace(/^\s*:\s*"/, '');
+          code = code.replace(/"\s*$/, '');
+        } else {
+          // fallback: take everything after first newline (best-effort)
+          const nl = head.indexOf('\n');
+          code = nl !== -1 ? head.slice(nl + 1).trim() : '';
+        }
+      }
+
+      // unescape common JSON escapes so code appears natural
+      code = code
+        .replace(/\\n/g, '\n')
+        .replace(/\\"/g, '"')
+        .replace(/\\t/g, '\t')
+        .replace(/\\\\/g, '\\')
+        .trim();
+
+      return { code, result };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // reactive parsed tool object
+  $: toolParsed = parseExecutePython(content);
+  $: isExecutePython = !!toolParsed;
+
   function copyToClipboard() {
     const contentToCopy = getProcessedContentForCopy();
     navigator.clipboard.writeText(contentToCopy);
     copied = true;
     setTimeout(() => copied = false, 2000);
   }
+
+    function copyCode() { if (toolParsed?.code) copyTextToClipboard(toolParsed.code, v => copiedCode = v); }
+  function copyResult() { if (toolParsed?.result) copyTextToClipboard(toolParsed.result, v => copiedResult = v); }
+
 
   function toggleReasoning() {
     showReasoning = !showReasoning;
@@ -209,7 +269,52 @@
           </div>
         {/if}
         
-        {@html htmlContent}
+         <!-- new: special rendering for execute_python tool messages -->
+        {#if isExecutePython}
+          <div class="space-y-3">
+            <div class="tool-block bg-gray-50 border border-gray-200 rounded p-3 relative">
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-xs text-gray-600">{'{"tool":"execute_python"} — code'}</div>
+                <button
+                  class="p-1 rounded text-gray-500 hover:text-gray-700 focus:outline-none"
+                  on:click={copyCode}
+                  aria-label="Copy code"
+                >
+                  {#if copiedCode}
+                    <Check class="h-4 w-4 text-green-500" />
+                  {:else}
+                    <ClipboardCopy class="h-4 w-4" />
+                  {/if}
+                </button>
+              </div>
+              <pre class="whitespace-pre-wrap text-sm"><code>{toolParsed.code}</code></pre>
+            </div>
+
+            <div class="tool-block bg-gray-100 border border-gray-200 rounded p-3 relative">
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-xs text-gray-600">Result</div>
+                <button
+                  class="p-1 rounded text-gray-500 hover:text-gray-700 focus:outline-none"
+                  on:click={copyResult}
+                  aria-label="Copy result"
+                >
+                  {#if copiedResult}
+                    <Check class="h-4 w-4 text-green-500" />
+                  {:else}
+                    <ClipboardCopy class="h-4 w-4" />
+                  {/if}
+                </button>
+              </div>
+              <pre class="whitespace-pre-wrap text-sm">{toolParsed.result}</pre>
+            </div>
+          </div>
+        {:else}
+          {@html htmlContent}
+        {/if}
+
+
+
+
       </div>
       
     </div>
@@ -294,6 +399,12 @@
   :global(.katex-display-wrapper p) {
     margin: 0;
   }
+
+  /* Styles for the tool blocks and copy buttons */
+  .tool-block { position: relative; }
+  .tool-block pre { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace; }
+  .tool-block .text-xs { font-weight: 600; color: #4b5563; }
+
   
   /* Style for reasoning sections */
   :global(.reasoning-section) {
