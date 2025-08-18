@@ -59,6 +59,31 @@
       };
     }
 
+    // Check for read_file tool output
+    const readFileMarker = '[Tool read_file output]:';
+    const readFileIdx = raw.indexOf(readFileMarker);
+
+    if (readFileIdx !== -1) {
+      const fileContent = raw.slice(readFileIdx + readFileMarker.length).trim();
+      const fileName = raw.match(/"filename":\s*"([^"]+)"/)?.[1] || '';
+      
+      // Check if file has code extension
+      const codeExtensions = ['.py', '.rb', '.c', '.cpp', '.go', '.js', '.ts'];
+      const isCode = fileName && codeExtensions.some(ext => fileName.toLowerCase().endsWith(ext));
+
+      if (isCode) {
+        return {
+          code: fileContent,
+          result: ''
+        };
+      } else {
+        return {
+          code: '',
+          result: fileContent
+        };
+      }
+    }
+
 
       const startMarker = '{"tool":"execute_python"';
       const startIdx = raw.indexOf(startMarker);
@@ -362,13 +387,14 @@
             </div>
             {/if}
 
-          <div class="tool-block bg-gray-200 border border-gray-200 rounded p-3 relative">
-            <div class="flex items-center justify-between mb-2">
-              <div class="text-xs text-gray-600">{'result'}</div>
+            {#if toolParsed?.result}    
+              <div class="tool-block bg-gray-200 border border-gray-200 rounded p-3 relative">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="text-xs text-gray-600">{'result'}</div>
 
 
-                  <!-- 按钮：提升可读性 -->
-                <button
+                    <!-- 按钮：提升可读性 -->
+                    <button
                     class="p-1 rounded text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
                     on:click={copyResult}
                     aria-label="Copy result"
@@ -379,10 +405,12 @@
                   {:else}
                     <ClipboardCopy class="h-4 w-4" />
                   {/if}
-                </button>
+                    </button>
+                  
+                  <pre class="whitespace-pre-wrap text-sm text-gray-900">{toolParsed.result}</pre>
+                </div>
               </div>
-              <pre class="whitespace-pre-wrap text-sm text-gray-900">{toolParsed.result}</pre>
-            </div>
+            {/if} 
           </div>
         {:else}
           {@html htmlContent}
