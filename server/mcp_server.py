@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 Minimal MCP server example that exposes a few safe tools and an "execute_python" tool.
@@ -35,7 +36,7 @@ logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 logger = logging.getLogger("mcp_server")
 
 # Default working directory: repo root (one level up from this file)
-DEFAULT_CWD = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+DEFAULT_CWD = os.path.abspath(os.path.join(os.path.dirname(__file__), "."))
 
 if FastMCP is not None:
     mcp = FastMCP("cherry-stdio-demo")
@@ -159,6 +160,71 @@ def execute_python(code: str, timeout: int = 5, cwd: str | None = DEFAULT_CWD) -
             pass
 
 
+# New tool: save_script
+@mcp.tool() if mcp else (lambda f: f)
+def save_script(filename: str, code: str) -> str:
+    """
+    Save the provided code into DEFAULT_CWD/saved_scripts/<filename>.py
+    filename must be a simple basename (no slashes, no ..).
+    """
+    logger.info("save_script called: %s", filename)
+    try:
+        if not filename:
+            return "ERROR: filename required"
+        # simple filename check: no path components, no traversal
+        if os.path.basename(filename) != filename or ".." in filename:
+            return "ERROR: filename must be a simple basename without path separators"
+        if not filename.endswith(".py"):
+            filename = filename + ".py"
+        scripts_dir = os.path.abspath(os.path.join(DEFAULT_CWD, "saved_scripts"))
+        os.makedirs(scripts_dir, exist_ok=True)
+        target = os.path.abspath(os.path.join(scripts_dir, filename))
+        # ensure target is inside scripts_dir
+        if os.path.commonpath([scripts_dir, target]) != scripts_dir:
+            return "ERROR: invalid filename"
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(code)
+        return f"OK: saved to {target}"
+    except Exception as e:
+        logger.exception("save_script failed")
+        return f"ERROR: {e}"
+
+
+# New tool: exe_script
+@mcp.tool() if mcp else (lambda f: f)
+def exe_script(filename: str, timeout: int = 5) -> str:
+    """
+    Execute a previously saved script from DEFAULT_CWD/saved_scripts/<filename>.
+    Returns output or error (strings).
+    """
+    logger.info("exe_script called: %s", filename)
+    try:
+        if not filename:
+            return "ERROR: filename required"
+        if os.path.basename(filename) != filename or ".." in filename:
+            return "ERROR: filename must be a simple basename without path separators"
+        if not filename.endswith(".py"):
+            filename = filename + ".py"
+        scripts_dir = os.path.abspath(os.path.join(DEFAULT_CWD, "saved_scripts"))
+        target = os.path.abspath(os.path.join(scripts_dir, filename))
+        if os.path.commonpath([scripts_dir, target]) != scripts_dir:
+            return "ERROR: invalid filename"
+        if not os.path.exists(target):
+            return f"ERROR: file not found: {filename}"
+        cp = subprocess.run([sys.executable, "-u", target], capture_output=True, text=True, timeout=timeout, cwd=scripts_dir)
+        out = cp.stdout or ""
+        err = cp.stderr or ""
+        rc = cp.returncode
+        if rc != 0:
+            return f"ERROR (rc={rc}): {err or out}"
+        return out or "(no output)"
+    except subprocess.TimeoutExpired:
+        return "ERROR: timeout"
+    except Exception as e:
+        logger.exception("exe_script failed")
+        return f"ERROR: {e}"
+
+
 @mcp.tool() if mcp else (lambda f: f)
 async def long_task(ctx, steps: int = 5) -> str:
     # In environments without the mcp package, Context may not be available.
@@ -194,9 +260,12 @@ if __name__ == "__main__":
                     logger.info("request headers: %s", hdrs)
                 except Exception:
                     pass
-                # Support two JSON tool endpoints for tests when MCP package is missing:
+                # Support a few JSON tool endpoints for tests when MCP package is missing:
                 # - /tools/list_dir  -> returns application/json list of files
                 # - /tools/execute_python -> accepts { code, timeout, cwd } and returns JSON { result }
+                # - /tools/save_script -> accepts { filename, code } and returns JSON { result }
+                # - /tools/exe_script  -> accepts { filename, timeout } and returns JSON { result }
+                # - /tools/read_file   -> accepts { filename } and returns JSON { result }
                 try:
                     length = int(self.headers.get('content-length', 0))
                     raw = self.rfile.read(length)
@@ -228,6 +297,62 @@ if __name__ == "__main__":
                     cwd_v = payload.get('cwd', None) or None
                     try:
                         result = execute_python(code, timeout=timeout_v, cwd=cwd_v)
+                        resp = json.dumps({ 'ok': True, 'result': result })
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'application/json')
+                        self.send_header('Cache-Control', 'no-cache')
+                        self.end_headers()
+                        self.wfile.write(resp.encode('utf-8'))
+                        return
+                    except Exception:
+                        self.send_response(500)
+                        self.send_header('Content-Type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(json.dumps({ 'ok': False }).encode('utf-8'))
+                        return
+
+                if self.path == '/tools/save_script':
+                    filename = payload.get('filename') or payload.get('name')
+                    code = payload.get('code', '')
+                    try:
+                        result = save_script(filename, code)
+                        resp = json.dumps({ 'ok': True, 'result': result })
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'application/json')
+                        self.send_header('Cache-Control', 'no-cache')
+                        self.end_headers()
+                        self.wfile.write(resp.encode('utf-8'))
+                        return
+                    except Exception:
+                        self.send_response(500)
+                        self.send_header('Content-Type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(json.dumps({ 'ok': False }).encode('utf-8'))
+                        return
+
+                if self.path == '/tools/exe_script':
+                    filename = payload.get('filename') or payload.get('name')
+                    timeout_v = int(payload.get('timeout', 5))
+                    try:
+                        result = exe_script(filename, timeout=timeout_v)
+                        resp = json.dumps({ 'ok': True, 'result': result })
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'application/json')
+                        self.send_header('Cache-Control', 'no-cache')
+                        self.end_headers()
+                        self.wfile.write(resp.encode('utf-8'))
+                        return
+                    except Exception:
+                        self.send_response(500)
+                        self.send_header('Content-Type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(json.dumps({ 'ok': False }).encode('utf-8'))
+                        return
+
+                if self.path == '/tools/read_file':
+                    filename = payload.get('filename') or payload.get('path')
+                    try:
+                        result = read_file(filename)
                         resp = json.dumps({ 'ok': True, 'result': result })
                         self.send_response(200)
                         self.send_header('Content-Type', 'application/json')

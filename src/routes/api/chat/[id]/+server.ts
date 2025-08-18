@@ -322,14 +322,44 @@ export async function POST({ request, params, fetch, locals }) {
     }
 
     // Describe available tools to the model in a strict, machine-readable way.
-    const toolDescription = `Available tools:\n\n` +
-      `1) execute_python: Executes Python code on a trusted test host.\n` +
-      `   - Call format (STRICT JSON only, inside your final assistant message, no surrounding text):\n` +
-      `     {"tool":"execute_python","code":"<python source as string>","timeout":5,"cwd":null}\n` +
-      `   - The model MUST output only the JSON object (no additional commentary) when invoking the tool.\n` +
-      `   - After you call the tool, the server will execute the code and append the tool output into the conversation.\n` +
-      `Example (what you should output to run a script that lists the repo):\n` +
-      `{"tool":"execute_python","code":"import os; print('FILES:\\n' + '\\n'.join(os.listdir('.')))","timeout":5}`;
+    const toolDescription = `Available tools:
+
+1) **execute_python**: Executes Python code in a subprocess  
+   - Call format: {"tool":"execute_python","code":"<python code>","timeout":5,"cwd":null} 
+   - timeout: Maximum execution time in seconds (default: 5)  
+   - cwd: Working directory (optional, defaults to repo root)  
+   - Returns: JSON object with result string containing stdout, stderr, and return code  
+
+2) **list_dir**: Lists files in a specified directory  
+   - Call format: {"tool":"list_dir","path":"."}
+   - path: Directory to list (default: current directory)  
+   - Returns: Array of file and subdirectory names as strings  
+
+3) **read_file**: Reads the contents of a text file  
+   - Call format: {"tool":"read_file","filename":"<filepath>"} or {"path":"<filepath>"}
+   - Accepts either filename or path key  
+   - Returns: File content as a string, or error message on failure  
+
+4) **save_script**: Saves Python code to a “.py” file in saved_scripts/  
+   - Call format: {"tool":"save_script","filename":"myscript","code":"print('Hello')"}" 
+   - filename: Base name (no path, no .., auto-adds ”.py“ if missing)  
+   - code: Valid Python source to save  
+   - Returns: Status message indicating success or error  
+
+5) **exe_script**: Executes a previously saved script from saved_scripts/ 
+   - Call format: {"tool":"exe_script","filename":"myscript","timeout":5}  
+   - filename: Name of saved script (with or without “.py”)  
+   - timeout: Optional, default 5 seconds  
+   - Returns: Output of the script or error (e.g., timeout, not found)  
+
+---
+
+call execute_python if the code size is little than 2000 characters, otherwise use the save_script tool to save the code and then call exe_script to execute it.
+
+#### Example Tool Call (Valid Output Format)
+{"tool":"execute_python","code":"print('Hello world!')","timeout":5}`
+
+
 
     // Prepend the system tool registration so the model is aware of available tools.
     const messages = [{ role: 'system', content: toolDescription }, ...history, { role: 'user', content }];
@@ -476,35 +506,75 @@ export async function POST({ request, params, fetch, locals }) {
               let finalMessageToSave = filteredMessage;
               try {
                 const toolJsonMatch = filteredMessage.match(/\{[\s\S]*?"tool"[\s\S]*?\}/);
-                if (toolJsonMatch) {
-                  try {
-                    const toolCall = JSON.parse(toolJsonMatch[0]);
-                    if (toolCall.tool === 'execute_python' && toolCall.code) {
-                      // Execute the python code via local MCP tool endpoint
-                      const mcpUrl = process.env.LOCAL_MCP_URL || 'http://127.0.0.1:33333';
-                      const execRes = await fetch(`${mcpUrl}/tools/execute_python`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ code: toolCall.code, timeout: toolCall.timeout || 5, cwd: toolCall.cwd || null })
-                      });
-                      const execData = await execRes.json().catch(() => null);
-                      const execOutput = execData?.result || execData?.error || JSON.stringify(execData);
-                      const toolOutputText = `\n\n[Tool execute_python output]:\n${execOutput}\n`;
+                // if (toolJsonMatch) {
+                //   try {
+                //     const toolCall = JSON.parse(toolJsonMatch[0]);
+                //     if (toolCall.tool === 'execute_python' && toolCall.code) {
+                //       // Execute the python code via local MCP tool endpoint
+                //       const mcpUrl = process.env.LOCAL_MCP_URL || 'http://127.0.0.1:33333';
+                //       const execRes = await fetch(`${mcpUrl}/tools/execute_python`, {
+                //         method: 'POST',
+                //         headers: { 'Content-Type': 'application/json' },
+                //         body: JSON.stringify({ code: toolCall.code, timeout: toolCall.timeout || 5, cwd: toolCall.cwd || null })
+                //       });
+                //       const execData = await execRes.json().catch(() => null);
+                //       const execOutput = execData?.result || execData?.error || JSON.stringify(execData);
+                //       const toolOutputText = `\n\n[Tool execute_python output]:\n${execOutput}\n`;
 
-                      // Stream the tool output to the client as continuation
-                      try {
-                        controller.enqueue(toolOutputText);
-                      } catch (e) {
-                        console.error('Failed to enqueue tool output:', e);
-                      }
+                //       // Stream the tool output to the client as continuation
+                //       try {
+                //         controller.enqueue(toolOutputText);
+                //       } catch (e) {
+                //         console.error('Failed to enqueue tool output:', e);
+                //       }
 
-                      // Append tool output to message to be saved
-                      finalMessageToSave = filteredMessage + toolOutputText;
-                    }
-                  } catch (e) {
-                    console.error('Failed to parse tool JSON:', e);
-                  }
-                }
+                //       // Append tool output to message to be saved
+                //       finalMessageToSave = filteredMessage + toolOutputText;
+                //     }
+                //   } catch (e) {
+                //     console.error('Failed to parse tool JSON:', e);
+                //   }
+                // }
+
+             
+if (toolJsonMatch) {
+  try {
+    const toolCall = JSON.parse(toolJsonMatch[0]);
+    if (toolCall.tool) {
+      // Call local MCP server
+      const mcpUrl = process.env.LOCAL_MCP_URL || 'http://127.0.0.1:33333';
+      const execRes = await fetch(`${mcpUrl}/tools/${toolCall.tool}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(toolCall)
+      });
+
+      let toolOutput;
+      try {
+        const execData = await execRes.json();
+        toolOutput = execData.result || execData.items || execData.error || JSON.stringify(execData);
+      } catch (e) {
+        toolOutput = await execRes.text();
+      }
+
+      const toolOutputText = `\n\n[Tool ${toolCall.tool} output]:\n${toolOutput}\n`;
+
+      //console.log(toolOutputText);
+
+      // Stream tool output to client
+      try {
+        controller.enqueue(toolOutputText);
+      } catch (e) {
+        console.error('Failed to enqueue tool output:', e);
+      }
+
+      // Append tool output to message to be saved
+      finalMessageToSave = filteredMessage + toolOutputText;
+    }
+  } catch (e) {
+    console.error('Failed to parse or execute tool call:', e);
+  }
+}
               } catch (e) {
                 console.error('Tool detection error:', e);
               }

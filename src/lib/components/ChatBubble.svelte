@@ -42,6 +42,21 @@
   function parseExecutePython(raw: string) {
     try {
       if (!raw) return null;
+
+      // 首先检查是否是 list_dir 工具输出
+    const listDirMarker = '[Tool list_dir output]:';
+    const listDirIdx = raw.indexOf(listDirMarker);
+    
+    if (listDirIdx !== -1) {
+      // 如果是 list_dir 输出，提取结果部分
+      const result = raw.slice(listDirIdx + listDirMarker.length).trim();
+      return {
+        code: '', // list_dir 不需要显示代码
+        result: result
+      };
+    }
+
+
       const startMarker = '{"tool":"execute_python"';
       const startIdx = raw.indexOf(startMarker);
       if (startIdx === -1) return null;
