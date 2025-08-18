@@ -21,6 +21,9 @@ import logging
 import tempfile
 import subprocess
 from typing import List
+import time
+
+
 
 try:
     from mcp.server.fastmcp import FastMCP, Context
@@ -64,17 +67,73 @@ def change_cwd(path: str = DEFAULT_CWD) -> str:
         return f"ERROR: {e}"
 
 
+
 @mcp.tool() if mcp else (lambda f: f)
-def list_dir(path: str = ".") -> List[str]:
-    """List files in directory (returns list of names)."""
+def list_dir(path: str = ".") -> str:
+    """List directory contents in detailed, time-sorted format (newest last).
+    Shows size, date, and marks directories with '/'.
+    'total' indicates the number of entries (files + directories).
+    """
     logger.info("list_dir called for %s", path)
     try:
-        items = os.listdir(path)
-        return items
+        abs_path = os.path.abspath(path)
+        if not os.path.exists(abs_path):
+            return f"ERROR: path does not exist: {path}"
+        if not os.path.isdir(abs_path):
+            return f"ERROR: not a directory: {path}"
+
+        entries = []
+
+        for name in os.listdir(abs_path):
+            full_path = os.path.join(abs_path, name)
+            try:
+                stat = os.stat(full_path)
+                is_dir = os.path.isdir(full_path)
+                size = stat.st_size
+                mtime = stat.st_mtime
+
+                # Format size: B, K, M, G
+                if size >= 1024 * 1024 * 1024:
+                    size_str = f"{size / (1024*1024*1024):.1f}G"
+                elif size >= 1024 * 1024:
+                    size_str = f"{size / (1024*1024):.1f}M"
+                elif size >= 1024:
+                    size_str = f"{size / 1024:.0f}K"
+                else:
+                    size_str = f"{size}B"
+
+                # Format time: 'M D HH:MM' (e.g., "8 17 17:57")
+                time_str = time.strftime("%m %d %H:%M", time.localtime(mtime))
+
+                # Add '/' for directories
+                display_name = name + "/" if is_dir else name
+
+                entries.append({
+                    "name": display_name,
+                    "size_str": size_str,
+                    "time_str": time_str,
+                    "mtime": mtime,
+                })
+            except Exception as e:
+                logger.warning("Cannot stat %s: %s", name, e)
+
+        # Sort by modification time: oldest first (newest at the end)
+        entries.sort(key=lambda x: x["mtime"])
+
+        # Now: total = number of entries (files + directories)
+        total_count = len(entries)
+
+        # Format output
+        lines = [f"total {total_count}"]
+        for entry in entries:
+            line = f"{entry['size_str']:>6}  {entry['time_str']}  {entry['name']}"
+            lines.append(line)
+
+        return "\n".join(lines)
+
     except Exception as e:
         logger.exception("list_dir failed")
-        return [f"ERROR: {e}"]
-
+        return f"ERROR: {e}"
 
 @mcp.tool() if mcp else (lambda f: f)
 def read_file(path: str) -> str:
