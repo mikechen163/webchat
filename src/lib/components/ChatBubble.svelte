@@ -130,6 +130,26 @@
         }
       }
 
+   // Try to extract stderr first
+let stderr = '';
+const stderrRegex = /(?:--- stderr ---|\[Tool execute_python stderr\]:)/i;
+const stderrMatch = raw.match(stderrRegex);
+if (stderrMatch) {
+  const start = raw.indexOf(stderrMatch[0]) + stderrMatch[0].length;
+  stderr = raw.slice(start).trim();
+}
+
+// If stderr has content, return early without parsing stdout
+if (stderr && !/^\s*$/.test(stderr)) {
+  // Optionally, you can still clean stderr if needed
+  // For now, just return empty code result and error info
+  return { 
+    code, 
+    result: stderr.trim()   
+  };
+}
+
+
       // Try to extract stdout/result. Support multiple marker formats.
       let result = '';
       const stdoutRegex = /(?:--- stdout ---|\[Tool execute_python output\]:)/i;

@@ -7,6 +7,7 @@ import { OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL } from '$env/static/priva
 
 import fetch from 'node-fetch';
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import { t } from "$lib/stores/i18n.js";
 
 
 const prisma = new PrismaClient();
@@ -324,6 +325,7 @@ export async function POST({ request, params, fetch, locals }) {
     // Describe available tools to the model in a strict, machine-readable way.
    const toolDescription = `Available tools:
 
+ 
 1) **execute_python**: Executes Python code in a subprocess  
    - Call format: {"tool":"execute_python","code":"<python code>","timeout":5,"cwd":null} 
    - timeout: Maximum execution time in seconds (default: 5)  
@@ -341,7 +343,7 @@ export async function POST({ request, params, fetch, locals }) {
    - Returns: File content as a string, or error message on failure  
 
 4) **save_script**: Saves Python code to a ".py" file in saved_scripts/  
-   - Call format: {"tool":"save_script","filename":"myscript","code":"print('Hello')"}  
+   - Call format: {"tool":"save_script","filename":"myscript","code":"<python code here>"}  
    - filename: Base name (no path, no .., auto-adds ".py" if missing)  
    - code: Valid Python source to save  
    - Returns: Status message indicating success or error  
@@ -547,10 +549,53 @@ call execute_python if the code size is less than 800 characters, otherwise use 
                 //   }
                 // }
 
-             
+
+// function extractFirstToolCall(text) {
+//   // 优先从 ```json 代码块里取（如果你让模型按这种格式输出）
+//   const block = text.match(/```json\s*([\s\S]*?)\s*```/i);
+//   if (block) return JSON.parse(block[1]);
+  
+//   const start = text.indexOf('{"tool":');
+//   if (start === -1) return null;
+
+//   console.log(text );
+
+//   let depth = 0;
+//   let inString = false;
+//   let escape = false;
+
+//   for (let i = start; i < text.length; i++) {
+//     const ch = text[i];
+
+//     if (escape) { escape = false; continue; }
+//     if (ch === '\\') { escape = true; continue; }
+//     if (ch === '"') { inString = !inString; continue; }
+
+//     if (!inString) {
+//       if (ch === '{') depth++;
+//       else if (ch === '}') {
+//         depth--;
+//         if (depth === 0) {
+//           const jsonStr = text.slice(start, i + 1);
+//           return JSON.parse(jsonStr);
+//         }
+//       }
+//     }
+//   }
+//   throw new Error('Unclosed JSON object starting at {"tool":');
+// }
+
+
+
+      
 if (toolJsonMatch) {
   try {
-    const toolCall = JSON.parse(toolJsonMatch[0]);
+    const toolCall = JSON.parse(filteredMessage);
+  
+    //const toolCall = extractFirstToolCall(toolJsonMatch[0]);
+   // console.log('Detected tool call:', toolCall);
+    
+
     if (toolCall.tool) {
       // Call local MCP server
       const mcpUrl = process.env.LOCAL_MCP_URL || 'http://127.0.0.1:33333';
