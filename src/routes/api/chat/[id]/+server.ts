@@ -366,7 +366,7 @@ export async function POST({ request, params, fetch, locals }) {
 
 ---
 
-call execute_python if the code size is less than 2000 characters, otherwise use the save_script tool to save the code and then call exe_script to execute it.
+call execute_python if the code size is less than 800 characters, otherwise use the save_script tool to save the code and then call exe_script to execute it.
 
 #### Example Tool Call (Valid Output Format)
 {"tool":"execute_python","code":"print('Hello world!')","timeout":5}`;
