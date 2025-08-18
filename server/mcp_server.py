@@ -226,6 +226,70 @@ def exe_script(filename: str, timeout: int = 5) -> str:
 
 
 @mcp.tool() if mcp else (lambda f: f)
+def autopep8(filename: str) -> str:
+    """
+    Format a Python script using autopep8.
+    Input: filename (relative to DEFAULT_CWD or absolute).
+    Returns stdout of autopep8 or error.
+    """
+    logger.info("autopep8 called: %s", filename)
+    try:
+        if not filename:
+            return "ERROR: filename required"
+        # Validate path to avoid traversal
+        filepath = os.path.abspath(os.path.join(DEFAULT_CWD, filename))
+        scripts_dir = os.path.abspath(DEFAULT_CWD)
+        if os.path.commonpath([scripts_dir, filepath]) != scripts_dir:
+            return "ERROR: file not within allowed directory"
+        if not os.path.exists(filepath):
+            return f"ERROR: file not found: {filename}"
+
+        # Run autopep8 --in-place
+        result = subprocess.run(
+            ["autopep8", "--in-place", filepath],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return f"ERROR: autopep8 failed: {result.stderr.strip()}"
+        return f"OK: formatted {filename}"
+    except subprocess.TimeoutExpired:
+        return "ERROR: autopep8 timed out"
+    except Exception as e:
+        logger.exception("autopep8 failed")
+        return f"ERROR: {e}"
+
+
+@mcp.tool() if mcp else (lambda f: f)
+def install(package: str) -> str:
+    """
+    Install a Python package using `uv pip install`.
+    Input: package name (e.g., 'requests' or 'requests==2.28.0').
+    """
+    logger.info("install called: %s", package)
+    if not package:
+        return "ERROR: package name required"
+    try:
+        result = subprocess.run(
+            ["uv", "pip", "install", package],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode != 0:
+            stderr = result.stderr.strip()
+            return f"ERROR: uv install failed: {stderr[:500]}"  # limit output
+        return f"OK: installed {package}"
+    except subprocess.TimeoutExpired:
+        return "ERROR: install timed out"
+    except Exception as e:
+        logger.exception("install failed")
+        return f"ERROR: {e}"
+
+
+
+@mcp.tool() if mcp else (lambda f: f)
 async def long_task(ctx, steps: int = 5) -> str:
     # In environments without the mcp package, Context may not be available.
     # Accept a generic ctx and attempt to call report_progress if present.
@@ -272,6 +336,44 @@ if __name__ == "__main__":
                     payload = json.loads(raw.decode('utf-8') or '{}')
                 except Exception:
                     payload = {}
+
+                
+                if self.path == '/tools/autopep8':
+                    filename = payload.get('filename') or payload.get('path')
+                    try:
+                        result = autopep8(filename)
+                        resp = json.dumps({ 'ok': True, 'result': result })
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'application/json')
+                        self.send_header('Cache-Control', 'no-cache')
+                        self.end_headers()
+                        self.wfile.write(resp.encode('utf-8'))
+                        return
+                    except Exception:
+                        self.send_response(500)
+                        self.send_header('Content-Type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(json.dumps({ 'ok': False }).encode('utf-8'))
+                        return
+
+                if self.path == '/tools/install':
+                    package = payload.get('package')
+                    try:
+                        result = install(package)
+                        resp = json.dumps({ 'ok': True, 'result': result })
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'application/json')
+                        self.send_header('Cache-Control', 'no-cache')
+                        self.end_headers()
+                        self.wfile.write(resp.encode('utf-8'))
+                        return
+                    except Exception:
+                        self.send_response(500)
+                        self.send_header('Content-Type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(json.dumps({ 'ok': False }).encode('utf-8'))
+                        return
+
 
                 if self.path == '/tools/list_dir':
                     path = payload.get('path', '.')

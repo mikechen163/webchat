@@ -50,9 +50,12 @@
     if (listDirIdx !== -1) {
       // 如果是 list_dir 输出，提取结果部分
       const result = raw.slice(listDirIdx + listDirMarker.length).trim();
+      // Convert comma-separated list to newline-separated
+      const res2 = result.split(',').join('\n');
+      
       return {
         code: '', // list_dir 不需要显示代码
-        result: result
+        result: res2
       };
     }
 
@@ -338,6 +341,8 @@
          <!-- new: special rendering for execute_python tool messages -->
         {#if isExecutePython}
           <div class="space-y-3">
+            {#if toolParsed?.code}
+
             <div class="tool-block bg-gray-50 border border-gray-200 rounded p-3 relative">
               <div class="flex items-center justify-between mb-2">
                 <div class="text-xs text-gray-600">{'code'}</div>
@@ -355,6 +360,7 @@
               </div>
               <pre class="whitespace-pre-wrap text-sm"><code>{toolParsed.code}</code></pre>
             </div>
+            {/if}
 
           <div class="tool-block bg-gray-200 border border-gray-200 rounded p-3 relative">
             <div class="flex items-center justify-between mb-2">

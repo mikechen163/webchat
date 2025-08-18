@@ -322,7 +322,7 @@ export async function POST({ request, params, fetch, locals }) {
     }
 
     // Describe available tools to the model in a strict, machine-readable way.
-    const toolDescription = `Available tools:
+   const toolDescription = `Available tools:
 
 1) **execute_python**: Executes Python code in a subprocess  
    - Call format: {"tool":"execute_python","code":"<python code>","timeout":5,"cwd":null} 
@@ -340,25 +340,36 @@ export async function POST({ request, params, fetch, locals }) {
    - Accepts either filename or path key  
    - Returns: File content as a string, or error message on failure  
 
-4) **save_script**: Saves Python code to a “.py” file in saved_scripts/  
-   - Call format: {"tool":"save_script","filename":"myscript","code":"print('Hello')"}" 
-   - filename: Base name (no path, no .., auto-adds ”.py“ if missing)  
+4) **save_script**: Saves Python code to a ".py" file in saved_scripts/  
+   - Call format: {"tool":"save_script","filename":"myscript","code":"print('Hello')"}  
+   - filename: Base name (no path, no .., auto-adds ".py" if missing)  
    - code: Valid Python source to save  
    - Returns: Status message indicating success or error  
 
 5) **exe_script**: Executes a previously saved script from saved_scripts/ 
    - Call format: {"tool":"exe_script","filename":"myscript","timeout":5}  
-   - filename: Name of saved script (with or without “.py”)  
+   - filename: Name of saved script (with or without ".py")  
    - timeout: Optional, default 5 seconds  
    - Returns: Output of the script or error (e.g., timeout, not found)  
 
+6) **autopep8**: Formats a Python script file in-place using autopep8  
+   - Call format: {"tool":"autopep8","filename":"saved_scripts/myscript.py"}  
+   - filename: Path to the Python script (must be within allowed directory)  
+   - Modifies the file directly to conform to PEP 8 style  
+   - Returns: Success message or error (e.g., file not found, invalid path)  
+
+7) **install**: Installs a Python package using uv pip install  
+   - Call format: {"tool":"install","package":"requests"}  
+   - package: Name of the package to install (e.g., "numpy", "requests==2.28.0")  
+   - Uses uv for fast, modern package installation  
+   - Returns: Status message indicating success or installation error  
+
 ---
 
-call execute_python if the code size is little than 2000 characters, otherwise use the save_script tool to save the code and then call exe_script to execute it.
+call execute_python if the code size is less than 2000 characters, otherwise use the save_script tool to save the code and then call exe_script to execute it.
 
 #### Example Tool Call (Valid Output Format)
-{"tool":"execute_python","code":"print('Hello world!')","timeout":5}`
-
+{"tool":"execute_python","code":"print('Hello world!')","timeout":5}`;
 
 
     // Prepend the system tool registration so the model is aware of available tools.
