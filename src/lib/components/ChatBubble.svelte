@@ -390,7 +390,7 @@
             {#if toolParsed?.result}    
               <div class="tool-block bg-gray-200 border border-gray-200 rounded p-3 relative">
                 <div class="flex items-center justify-between mb-2">
-                  <div class="text-xs text-gray-600">{'result'}</div>
+                  <div class="text-xs text-gray-600">{'result'}  </div>
 
 
                     <!-- 按钮：提升可读性 -->
@@ -406,12 +406,13 @@
                     <ClipboardCopy class="h-4 w-4" />
                   {/if}
                     </button>
-                  
+                  </div>
+
                   <pre class="whitespace-pre-wrap text-sm text-gray-900">{toolParsed.result}</pre>
-                </div>
+                
               </div>
             {/if} 
-          </div>
+           </div>
         {:else}
           {@html htmlContent}
         {/if}
