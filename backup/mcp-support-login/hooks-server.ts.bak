@@ -1,0 +1,54 @@
+import { auth } from "$lib/server/auth";
+import type { Handle } from "@sveltejs/kit";
+
+export const handle: Handle = async ({ event, resolve }) => {
+  // Handle preflight OPTIONS requests
+  if (event.request.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Max-Age': '3600'
+      }
+    });
+  }
+
+  // 手动处理请求 - Lucia Auth v2 语法
+  console.log('Hook: Cookie名称:', auth.sessionCookieName);
+  console.log('Hook: 所有Cookie:', [...event.cookies.getAll().map(c => c.name)]);
+  
+  const sessionId = event.cookies.get(auth.sessionCookieName);
+  console.log('Hook: Found sessionId:', sessionId ? 'exists' : 'null');
+  
+  const session = sessionId ? await auth.validateSession(sessionId) : null;
+  console.log('Hook: Session validation result:', session ? 'valid' : 'invalid');
+  
+  if (session) {
+    console.log('Hook: Session full data:', {
+      id: session.id,
+      expiresAt: session.expiresAt,
+      hasUser: !!session.user,
+      userData: session.user
+    });
+    console.log('Hook: Session user:', session.user?.email, 'Role:', session.user?.role);
+  }
+
+  event.locals.auth = {
+    session,
+    user: session?.user ?? null,
+  };
+  
+  console.log('Hook: locals.auth set, hasUser:', !!event.locals.auth.user);
+
+  const response = await resolve(event);
+  
+  // Add CORS headers to the response
+  response.headers.set('Access-Control-Allow-Origin', event.request.headers.get('Origin') || '*');
+  response.headers.set('Access-Control-Allow-Credentials', 'true');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  return response;
+};

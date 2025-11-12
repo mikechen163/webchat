@@ -252,7 +252,7 @@
 
           <!-- Message Display Options -->
           <div>
-            <label class="block mb-2 font-medium">Message Display Options</label>
+            <h3 class="block mb-2 font-medium">Message Display Options</h3>
             <div class="space-y-3">
               <label class="flex items-center">
                 <input type="checkbox" class="rounded text-blue-600 mr-2">

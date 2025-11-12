@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>干净登录测试</title>
+</head>
+<body>
+    <h1>干净登录测试 - 强制清除Cookie</h1>
+    <button onclick="clearAllCookies()">清除所有Cookie</button>
+    <button onclick="testLogin()">测试登录</button>
+    <button onclick="checkCurrentCookies()">检查当前Cookie</button>
+    
+    <div id="result"></div>
+    
+    <script>
+        function clearAllCookies() {
+            // 强制清除所有可能的Cookie
+            const cookies = document.cookie.split(";");
+            for (let cookie of cookies) {
+                const eqPos = cookie.indexOf("=");
+                const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
+                document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+            }
+            document.cookie = "auth_session=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+            document.cookie = "csrf=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+            document.cookie = "_stockquery_session=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+            
+            document.getElementById('result').innerHTML = '<p style="color: green;">✅ 所有Cookie已清除</p>';
+            checkCurrentCookies();
+        }
+        
+        function checkCurrentCookies() {
+            const cookies = document.cookie;
+            document.getElementById('result').innerHTML += '<p><strong>当前Cookie:</strong> ' + (cookies || '无') + '</p>';
+        }
+        
+        function testLogin() {
+            const result = document.getElementById('result');
+            result.innerHTML = '<p>正在测试登录...</p>';
+            
+            // 使用fetch发送登录请求
+            fetch('http://localhost:3000/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Origin': 'http://localhost:3000'
+                },
+                body: 'email=admin@example.com&password=admin123',
+                credentials: 'include' // 重要：包含cookies
+            })
+            .then(response => {
+                result.innerHTML += '<p>响应状态: ' + response.status + '</p>';
+                result.innerHTML += '<p>响应头:</p>';
+                
+                // 显示响应头
+                const headers = {};
+                for (let entry of response.headers.entries()) {
+                    headers[entry[0]] = entry[1];
+                    result.innerHTML += '<p>' + entry[0] + ': ' + entry[1] + '</p>';
+                }
+                
+                return response.json();
+            })
+            .then(data => {
+                result.innerHTML += '<p style="color: blue;">响应数据: ' + JSON.stringify(data) + '</p>';
+                
+                // 检查当前Cookie
+                checkCurrentCookies();
+                
+                // 尝试访问聊天页面
+                setTimeout(() => {
+                    result.innerHTML += '<p><strong>尝试访问聊天页面...</strong></p>';
+                    
+                    fetch('http://localhost:3000/chat', {
+                        credentials: 'include'
+                    })
+                    .then(chatResponse => {
+                        result.innerHTML += '<p>聊天页面响应状态: ' + chatResponse.status + '</p>';
+                        result.innerHTML += '<p>聊天页面URL: ' + chatResponse.url + '</p>';
+                        
+                        if (chatResponse.ok && !chatResponse.url.includes('login')) {
+                            result.innerHTML += '<p style="color: green;">✅ 成功访问聊天页面！</p>';
+                        } else {
+                            result.innerHTML += '<p style="color: red;">❌ 被重定向到登录页面</p>';
+                        }
+                        
+                        // 再次检查Cookie
+                        setTimeout(checkCurrentCookies, 1000);
+                    })
+                    .catch(error => {
+                        result.innerHTML += '<p style="color: red;">访问聊天页面错误: ' + error + '</p>';
+                    });
+                }, 1000);
+            })
+            .catch(error => {
+                result.innerHTML += '<p style="color: red;">登录错误: ' + error + '</p>';
+            });
+        }
+        
+        // 初始检查
+        window.onload = function() {
+            checkCurrentCookies();
+        };
+    </script>
+</body>
+</html>

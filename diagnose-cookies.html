@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cookie诊断工具</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Cookie诊断工具</h1>
+    
+    <div class="section">
+        <h2>1. 当前Cookie状态</h2>
+        <div id="current-cookies"></div>
+    </div>
+    
+    <div class="section">
+        <h2>2. 强制登录测试</h2>
+        <button onclick="forceLogin()">执行强制登录</button>
+        <div id="login-result"></div>
+    </div>
+    
+    <div class="section">
+        <h2>3. 手动Cookie测试</h2>
+        <button onclick="manualCookieTest()">手动设置Cookie并测试</button>
+        <div id="manual-result"></div>
+    </div>
+    
+    <div class="section">
+        <h2>4. 清除所有Cookie</h2>
+        <button onclick="clearAllCookies()">清除所有Cookie</button>
+        <div id="clear-result"></div>
+    </div>
+
+    <script>
+        // 显示当前Cookie
+        function showCurrentCookies() {
+            const div = document.getElementById('current-cookies');
+            const cookies = document.cookie;
+            
+            if (!cookies) {
+                div.innerHTML = '<p class="error">❌ 没有Cookie</p>';
+                return;
+            }
+            
+            const cookieArray = cookies.split(';');
+            let html = '<p>发现 ' + cookieArray.length + ' 个Cookie:</p><ul>';
+            cookieArray.forEach(cookie => {
+                const [name, value] = cookie.trim().split('=');
+                html += '<li><strong>' + name + ':</strong> ' + (value ? value.substring(0, 20) + '...' : '无值') + '</li>';
+            });
+            html += '</ul>';
+            
+            div.innerHTML = html;
+        }
+
+        // 强制登录
+        async function forceLogin() {
+            const div = document.getElementById('login-result');
+            div.innerHTML = '<p class="info">正在执行强制登录...</p>';
+            
+            try {
+                // 首先清除可能的干扰Cookie
+                document.cookie = 'auth_session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=localhost';
+                document.cookie = 'auth_session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=127.0.0.1';
+                
+                const response = await fetch('http://127.0.0.1:3000/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Origin': 'http://127.0.0.1:3000'
+                    },
+                    body: 'email=admin@example.com&password=admin123',
+                    credentials: 'include',
+                    mode: 'cors'
+                });
+                
+                div.innerHTML += '<p>响应状态: ' + response.status + '</p>';
+                
+                // 检查响应头中的Set-Cookie
+                const setCookie = response.headers.get('set-cookie');
+                if (setCookie) {
+                    div.innerHTML += '<p class="success">✅ 发现Set-Cookie头: ' + setCookie + '</p>';
+                } else {
+                    div.innerHTML += '<p class="error">❌ 没有Set-Cookie头</p>';
+                }
+                
+                const data = await response.json();
+                div.innerHTML += '<p>响应数据: ' + JSON.stringify(data) + '</p>';
+                
+                // 延迟后检查Cookie
+                setTimeout(() => {
+                    showCurrentCookies();
+                    testChatAccess();
+                }, 1000);
+                
+            } catch (error) {
+                div.innerHTML += '<p class="error">❌ 错误: ' + error.message + '</p>';
+            }
+        }
+
+        // 手动Cookie测试
+        async function manualCookieTest() {
+            const div = document.getElementById('manual-result');
+            div.innerHTML = '<p class="info">正在执行手动Cookie测试...</p>';
+            
+            try {
+                // 手动设置一个测试Cookie
+                document.cookie = 'auth_session=test_session_123; path=/; domain=127.0.0.1';
+                div.innerHTML += '<p>手动设置测试Cookie: auth_session=test_session_123</p>';
+                
+                showCurrentCookies();
+                
+                // 尝试访问聊天页面
+                const response = await fetch('http://127.0.0.1:3000/chat', {
+                    credentials: 'include',
+                    mode: 'cors'
+                });
+                
+                div.innerHTML += '<p>聊天页面响应状态: ' + response.status + '</p>';
+                div.innerHTML += '<p>聊天页面URL: ' + response.url + '</p>';
+                
+                if (response.ok && response.url.includes('/chat')) {
+                    div.innerHTML += '<p class="success">✅ 成功访问聊天页面</p>';
+                } else {
+                    div.innerHTML += '<p class="error">❌ 访问被拒绝或重定向</p>';
+                }
+                
+            } catch (error) {
+                div.innerHTML += '<p class="error">❌ 错误: ' + error.message + '</p>';
+            }
+        }
+
+        // 清除所有Cookie
+        function clearAllCookies() {
+            const div = document.getElementById('clear-result');
+            div.innerHTML = '<p class="info">正在清除所有Cookie...</p>';
+            
+            // 清除当前域的所有Cookie
+            const cookies = document.cookie.split(";");
+            for (let cookie of cookies) {
+                const eqPos = cookie.indexOf("=");
+                const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
+                document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+                document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" + location.hostname;
+                document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=127.0.0.1";
+                document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=localhost";
+            }
+            
+            div.innerHTML += '<p class="success">✅ 所有Cookie已清除</p>';
+            showCurrentCookies();
+        }
+
+        // 测试聊天页面访问
+        async function testChatAccess() {
+            const div = document.getElementById('login-result');
+            div.innerHTML += '<p><strong>正在测试聊天页面访问...</strong></p>';
+            
+            try {
+                const response = await fetch('http://127.0.0.1:3000/chat', {
+                    credentials: 'include',
+                    mode: 'cors'
+                });
+                
+                div.innerHTML += '<p>响应状态: ' + response.status + '</p>';
+                div.innerHTML += '<p>最终URL: ' + response.url + '</p>';
+                
+                if (response.ok && response.url.includes('/chat')) {
+                    div.innerHTML += '<p class="success">✅ 成功访问聊天页面！</p>';
+                } else {
+                    div.innerHTML += '<p class="error">❌ 被重定向到登录页面</p>';
+                }
+                
+            } catch (error) {
+                div.innerHTML += '<p class="error">❌ 访问错误: ' + error.message + '</p>';
+            }
+        }
+
+        // 初始化
+        window.onload = function() {
+            showCurrentCookies();
+        };
+    </script>
+</body>
+</html>

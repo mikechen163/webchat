@@ -3,7 +3,10 @@ import { PrismaClient } from "@prisma/client";
 import { callMcpProvider } from '$lib/mcp/adapter';
 import { streamResponse } from "$lib/utils/stream";
 import { json } from '@sveltejs/kit';
-import { OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL } from '$env/static/private';
+// 环境变量配置 - 使用默认值如果环境变量不存在
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
 
 import fetch from 'node-fetch';
 import { HttpsProxyAgent } from 'https-proxy-agent';

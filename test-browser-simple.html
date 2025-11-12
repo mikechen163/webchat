@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>登录测试</title>
+</head>
+<body>
+    <h1>简单登录测试</h1>
+    <form id="loginForm">
+        <input type="email" name="email" placeholder="邮箱" value="admin@example.com" required>
+        <br><br>
+        <input type="password" name="password" placeholder="密码" value="admin123" required>
+        <br><br>
+        <button type="submit">登录</button>
+    </form>
+    
+    <div id="result"></div>
+    
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const result = document.getElementById('result');
+            
+            try {
+                console.log('开始登录请求...');
+                const response = await fetch('http://localhost:3000/auth/login', {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'include', // 重要：包含cookies
+                    headers: {
+                        'Origin': 'http://localhost:3000'
+                    }
+                });
+                
+                console.log('响应状态:', response.status);
+                console.log('响应头:', [...response.headers.entries()]);
+                
+                const data = await response.json();
+                console.log('响应数据:', data);
+                
+                if (response.ok) {
+                    result.innerHTML = '<p style="color: green;">✅ 登录成功！响应: ' + JSON.stringify(data) + '</p>';
+                    
+                    // 检查cookies
+                    console.log('当前cookies:', document.cookie);
+                    
+                    // 尝试访问聊天页面
+                    setTimeout(async () => {
+                        console.log('尝试访问聊天页面...');
+                        const chatResponse = await fetch('http://localhost:3000/chat', {
+                            credentials: 'include'
+                        });
+                        console.log('聊天页面响应:', chatResponse.status, chatResponse.url);
+                        
+                        if (chatResponse.ok && !chatResponse.url.includes('login')) {
+                            result.innerHTML += '<p style="color: green;">✅ 成功访问聊天页面！</p>';
+                        } else {
+                            result.innerHTML += '<p style="color: red;">❌ 无法访问聊天页面，被重定向到: ' + chatResponse.url + '</p>';
+                        }
+                    }, 1000);
+                    
+                } else {
+                    result.innerHTML = '<p style="color: red;">❌ 登录失败: ' + response.status + '</p>';
+                }
+                
+            } catch (error) {
+                console.error('错误:', error);
+                result.innerHTML = '<p style="color: red;">❌ 错误: ' + error.message + '</p>';
+            }
+        });
+    </script>
+</body>
+</html>

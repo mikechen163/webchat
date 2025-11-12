@@ -1,0 +1,214 @@
+
+> webchat@0.0.1 dev
+> vite dev
+
+
+  VITE v6.2.0  ready in 651 ms
+
+  ➜  Local:   http://localhost:3000/
+  ➜  Network: http://192.168.5.178:3000/
+  ➜  Network: http://198.18.0.1:3000/
+Hook: Found sessionId: null
+Hook: Session validation result: invalid
+Hook: locals.auth set, hasUser: false
+Hook: Found sessionId: exists
+Hook: Session validation result: valid
+Hook: Session user: admin@example.com Role: admin
+Hook: locals.auth set, hasUser: true
+Layout load, auth state: {
+  hasUser: true,
+  hasSession: true,
+  path: '/chat',
+  host: 'localhost:3000',
+  auth: 'exists',
+  userEmail: 'admin@example.com',
+  userRole: 'admin'
+}
+Browserslist: browsers data (caniuse-lite) is 9 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+Hook: Found sessionId: null
+Hook: Session validation result: invalid
+Hook: locals.auth set, hasUser: false
+Layout load, auth state: {
+  hasUser: false,
+  hasSession: false,
+  path: '/auth/login',
+  host: 'localhost:3000',
+  auth: 'exists',
+  userEmail: undefined,
+  userRole: undefined
+}
+15:03:16 [vite] (client) page reload .svelte-kit/generated/client/nodes/0.js
+15:03:16 [vite] (client) page reload .svelte-kit/generated/client/nodes/1.js
+15:03:16 [vite] (client) page reload .svelte-kit/generated/client/nodes/2.js
+15:03:16 [vite] (client) page reload .svelte-kit/generated/client/nodes/6.js
+15:03:16 [vite] (client) page reload .svelte-kit/generated/client/app.js
+15:03:16 [vite] (client) page reload .svelte-kit/generated/client/matchers.js
+15:03:16 [vite] (ssr) page reload .svelte-kit/generated/server/internal.js
+15:03:16 [vite] (client) page reload .svelte-kit/generated/root.js
+15:03:16 [vite] (ssr) page reload .svelte-kit/generated/root.js
+Hook: Found sessionId: null
+Hook: Session validation result: invalid
+Hook: locals.auth set, hasUser: false
+Layout load, auth state: {
+  hasUser: false,
+  hasSession: false,
+  path: '/auth/login',
+  host: 'localhost:3000',
+  auth: 'exists',
+  userEmail: undefined,
+  userRole: undefined
+}
+15:03:39 [vite] (client) page reload test-browser-simple.html
+Hook: Found sessionId: null
+Hook: Session validation result: invalid
+Hook: locals.auth set, hasUser: false
+Hook: Found sessionId: null
+Hook: Session validation result: invalid
+Hook: locals.auth set, hasUser: false
+15:03:49 [vite] (client) page reload src/routes/auth/login/+page.server.ts
+15:03:49 [vite] (ssr) page reload src/routes/auth/login/+page.server.ts
+Hook: Found sessionId: null
+Hook: Session validation result: invalid
+Hook: locals.auth set, hasUser: false
+Layout load, auth state: {
+  hasUser: false,
+  hasSession: false,
+  path: '/auth/login',
+  host: 'localhost:3000',
+  auth: 'exists',
+  userEmail: undefined,
+  userRole: undefined
+}
+Hook: Found sessionId: null
+Hook: Session validation result: invalid
+Hook: locals.auth set, hasUser: false
+15:04:14 [vite] (client) page reload src/routes/+layout.server.ts
+15:04:14 [vite] (ssr) page reload src/routes/+layout.server.ts
+Hook: Found sessionId: null
+Hook: Session validation result: invalid
+Hook: locals.auth set, hasUser: false
+Layout load, auth state: {
+  hasUser: false,
+  hasSession: false,
+  path: '/auth/login',
+  host: 'localhost:3000',
+  auth: 'exists',
+  userEmail: undefined,
+  userRole: undefined
+}
+15:04:31 [vite] (client) page reload src/hooks.server.ts
+15:04:31 [vite] (ssr) page reload src/hooks.server.ts
+Hook: Cookie名称: auth_session
+Hook: 所有Cookie: [ 'csrf', '_stockquery_session' ]
+Hook: Found sessionId: null
+Hook: Session validation result: invalid
+Hook: locals.auth set, hasUser: false
+Layout load, auth state: {
+  hasUser: false,
+  hasSession: false,
+  path: '/auth/login',
+  host: 'localhost:3000',
+  auth: 'exists',
+  userEmail: undefined,
+  userRole: undefined
+}
+Hook: Cookie名称: auth_session
+Hook: 所有Cookie: []
+Hook: Found sessionId: null
+Hook: Session validation result: invalid
+Hook: locals.auth set, hasUser: false
+Hook: Cookie名称: auth_session
+Hook: 所有Cookie: [ 'auth_session' ]
+Hook: Found sessionId: exists
+Hook: Session validation result: valid
+Hook: Session user: admin@example.com Role: admin
+Hook: locals.auth set, hasUser: true
+Layout load, auth state: {
+  hasUser: true,
+  hasSession: true,
+  path: '/chat',
+  host: 'localhost:3000',
+  auth: 'exists',
+  userEmail: 'admin@example.com',
+  userRole: 'admin'
+}
+Hook: Cookie名称: auth_session
+Hook: 所有Cookie: [ 'auth_session' ]
+Hook: Found sessionId: exists
+Hook: Session validation result: valid
+Hook: Session user: admin@example.com Role: admin
+Hook: locals.auth set, hasUser: true
+Layout load, auth state: {
+  hasUser: true,
+  hasSession: true,
+  path: '/chat',
+  host: 'localhost:3000',
+  auth: 'exists',
+  userEmail: 'admin@example.com',
+  userRole: 'admin'
+}
+Hook: Cookie名称: auth_session
+Hook: 所有Cookie: []
+Hook: Found sessionId: null
+Hook: Session validation result: invalid
+Hook: locals.auth set, hasUser: false
+Hook: Cookie名称: auth_session
+Hook: 所有Cookie: [ 'auth_session' ]
+Hook: Found sessionId: exists
+Hook: Session validation result: valid
+Hook: Session user: admin@example.com Role: admin
+Hook: locals.auth set, hasUser: true
+Layout load, auth state: {
+  hasUser: true,
+  hasSession: true,
+  path: '/chat',
+  host: 'localhost:3000',
+  auth: 'exists',
+  userEmail: 'admin@example.com',
+  userRole: 'admin'
+}
+Hook: Cookie名称: auth_session
+Hook: 所有Cookie: []
+Hook: Found sessionId: null
+Hook: Session validation result: invalid
+Hook: locals.auth set, hasUser: false
+Hook: Cookie名称: auth_session
+Hook: 所有Cookie: [ 'auth_session' ]
+Hook: Found sessionId: exists
+Hook: Session validation result: valid
+Hook: Session user: admin@example.com Role: admin
+Hook: locals.auth set, hasUser: true
+Layout load, auth state: {
+  hasUser: true,
+  hasSession: true,
+  path: '/chat',
+  host: 'localhost:3000',
+  auth: 'exists',
+  userEmail: 'admin@example.com',
+  userRole: 'admin'
+}
+15:05:59 [vite] (client) page reload .svelte-kit/generated/client/nodes/0.js
+15:05:59 [vite] (client) page reload .svelte-kit/generated/client/nodes/1.js
+15:05:59 [vite] (client) page reload .svelte-kit/generated/client/nodes/2.js
+15:05:59 [vite] (client) page reload .svelte-kit/generated/client/nodes/6.js
+15:05:59 [vite] (client) page reload .svelte-kit/generated/client/app.js
+15:05:59 [vite] (client) page reload .svelte-kit/generated/client/matchers.js
+15:05:59 [vite] (ssr) page reload .svelte-kit/generated/server/internal.js
+15:05:59 [vite] (client) page reload .svelte-kit/generated/root.js
+15:05:59 [vite] (ssr) page reload .svelte-kit/generated/root.js
+Hook: Cookie名称: auth_session
+Hook: 所有Cookie: [ 'csrf', '_stockquery_session' ]
+Hook: Found sessionId: null
+Hook: Session validation result: invalid
+Hook: locals.auth set, hasUser: false
+Layout load, auth state: {
+  hasUser: false,
+  hasSession: false,
+  path: '/auth/login',
+  host: 'localhost:3000',
+  auth: 'exists',
+  userEmail: undefined,
+  userRole: undefined
+}

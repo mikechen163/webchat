@@ -1,0 +1,161 @@
+import { Lucia } from "lucia";
+import { PrismaAdapter } from "@lucia-auth/adapter-prisma";
+import { PrismaClient } from "@prisma/client";
+import { dev } from "$app/environment";
+
+const client = new PrismaClient();
+
+const adapter = new PrismaAdapter(
+  client.authSession, // Use authSession instead of session
+  client.user
+);
+
+export const auth = new Lucia(adapter, {
+  sessionCookie: {
+    attributes: {
+      secure: !dev
+    }
+  },
+  getUserAttributes: (data) => {
+    return {
+      id: data.id,
+      email: data.email,
+      name: data.name,
+      role: data.role,
+      language: data.language,
+      theme: data.theme
+    };
+  }
+});
+
+declare module "lucia" {
+  interface Register {
+    Lucia: typeof auth;
+    DatabaseUserAttributes: {
+      id: string;
+      email: string;
+      name: string | null;
+      role: string;
+      language: string;
+      theme: string;
+    };
+  }
+}
+
+export type Auth = typeof auth;
+
+/**
+ * 验证管理员权限
+ */
+export function requireAdmin(locals: App.Locals): void {
+  if (!locals.auth?.user || locals.auth.user.role !== 'admin') {
+    throw error(403, {
+      message: 'Admin privileges required',
+      code: 'ADMIN_REQUIRED'
+    });
+  }
+}
+
+/**
+ * 验证用户认证
+ */
+export function requireAuth(locals: App.Locals): App.User {
+  if (!locals.auth?.user) {
+    throw error(401, {
+      message: 'Authentication required',
+      code: 'UNAUTHORIZED'
+    });
+  }
+  return locals.auth.user;
+}
+
+/**
+ * 验证用户是否已认证（不抛出错误）
+ */
+export function isAuthenticated(locals: App.Locals): boolean {
+  return !!locals.auth?.user;
+}
+
+/**
+ * 验证用户是否为管理员（不抛出错误）
+ */
+export function isAdmin(locals: App.Locals): boolean {
+  return !!locals.auth?.user && locals.auth.user.role === 'admin';
+}
+
+/**
+ * 获取当前用户信息（可能为null）
+ */
+export function getCurrentUser(locals: App.Locals): App.User | null {
+  return locals.auth?.user || null;
+}
+
+/**
+ * 验证特定权限
+ */
+export function requirePermission(
+  locals: App.Locals, 
+  permission: string
+): void {
+  const user = requireAuth(locals);
+  
+  // 管理员拥有所有权限
+  if (user.role === 'admin') {
+    return;
+  }
+  
+  // 这里可以扩展更复杂的权限系统
+  // 例如：检查用户是否有特定权限
+  throw error(403, {
+    message: `Permission '${permission}' required`,
+    code: 'PERMISSION_DENIED'
+  });
+}
+
+/**
+ * API路由的认证中间件
+ */
+export function createAuthMiddleware(options?: {
+  requireAdmin?: boolean;
+  requireAuth?: boolean;
+}) {
+  return async (event: RequestEvent) => {
+    const { locals } = event;
+    
+    // 默认需要认证
+    const requireAuthFlag = options?.requireAuth !== false;
+    const requireAdminFlag = options?.requireAdmin === true;
+    
+    if (requireAuthFlag) {
+      requireAuth(locals);
+    }
+    
+    if (requireAdminFlag) {
+      requireAdmin(locals);
+    }
+    
+    return event;
+  };
+}
+
+/**
+ * 解析认证头信息
+ */
+export function parseAuthHeader(authHeader: string): {
+  type: string;
+  credentials: string;
+} | null {
+  if (!authHeader) {
+    return null;
+  }
+  
+  const parts = authHeader.split(' ');
+  if (parts.length !== 2) {
+    return null;
+  }
+  
+  return {
+    type: parts[0].toLowerCase(),
+    credentials: parts[1]
+  };
+}

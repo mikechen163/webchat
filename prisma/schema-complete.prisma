@@ -1,4 +1,4 @@
-// This is the complete Prisma schema with MCP support for SQLite
+// This is the complete Prisma schema with MCP support
 
 generator client {
   provider = "prisma-client-js"
@@ -7,6 +7,13 @@ generator client {
 datasource db {
   provider = "sqlite"
   url      = "file:./dev.db"
+}
+
+// MCP传输方式枚举
+enum McpTransport {
+  STDIO
+  HTTP
+  WEBSOCKET
 }
 
 model User {
@@ -24,7 +31,6 @@ model User {
   sessions     Session[]
   defaultModel String?
   searchModel  String?
-  userPreference UserPreference?
 }
 
 model AuthSession {
@@ -89,18 +95,18 @@ model Provider {
   modelConfigs ModelConfig[]
 }
 
-// MCP服务器配置模型 - SQLite适配版
+// MCP服务器配置模型
 model McpServerConfig {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  transport String   // "stdio", "http", "websocket" (string instead of enum for SQLite)
-  command   String?  // For stdio transport
-  baseUrl   String?  // For HTTP/WebSocket transport
-  apiKey    String?  // Encrypted API key
-  config    String?  // Tool configurations as JSON string (SQLite doesn't support Json type)
-  isActive  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String       @id @default(cuid())
+  name      String       @unique
+  transport McpTransport
+  command   String?      // For stdio transport
+  baseUrl   String?      // For HTTP/WebSocket transport
+  apiKey    String?      // Encrypted API key
+  config    Json?        // Tool configurations and metadata
+  isActive  Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
   
   // Relations
   userPreferences UserPreference[]
@@ -108,7 +114,7 @@ model McpServerConfig {
   @@map("mcp_server_configs")
 }
 
-// 用户偏好设置模型（更新版）- SQLite适配
+// 用户偏好设置模型（更新版）
 model UserPreference {
   id          String   @id @default(cuid())
   userId      String   @unique
