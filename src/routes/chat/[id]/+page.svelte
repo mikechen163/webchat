@@ -101,10 +101,10 @@
     clearTimeout(typingTimeout);
   });
 
-  // 修改工具栏状态控制
+  // 修改工具栏状态控制 - 简化版，隐藏搜索按钮
   let showTools = false;
   let webSearchMode = false;
-  let intelligentSearchMode = true; // New intelligent search mode (enabled by default)
+  let intelligentSearchMode = true; // Intelligent search enabled by default (hidden from UI)
   
   // Add search progress state
   let showSearchProgress = false;
@@ -120,29 +120,8 @@
     currentKeywords: ""
   };
 
-  // 修改工具选项, 直接使用let声明以确保状态变化会触发响应
-  let tools = [
-    {
-      id: 'websearch',
-      label: 'Web Search',
-      icon: Search,
-      toggle: () => {
-        webSearchMode = !webSearchMode;
-        console.log('Toggled web search mode:', webSearchMode); // Debug log
-        return webSearchMode;
-      }
-    },
-    {
-      id: 'intelligent-search',
-      label: 'AI Search',
-      icon: Search, // You might want to use a different icon
-      toggle: () => {
-        intelligentSearchMode = !intelligentSearchMode;
-        console.log('Toggled intelligent search mode:', intelligentSearchMode);
-        return intelligentSearchMode;
-      }
-    }
-  ];
+  // 工具栏按钮定义 - 已移除搜索相关按钮
+  let tools = []; // Empty array since we're hiding all tool buttons
 
   let selectedEffort: 'none' | 'low' | 'medium' | 'high' = 'none';
   const effortOptions = [
@@ -152,8 +131,9 @@
     { value: 'high', label: 'High' }
   ];
 
-  $: console.log('Current webSearchMode:', webSearchMode); // 响应式调试日志
-  $: console.log('Current intelligentSearchMode:', intelligentSearchMode);
+  // Debug logs for search modes (hidden from UI but active in background)
+  // $: console.log('Current webSearchMode:', webSearchMode);
+  // $: console.log('Current intelligentSearchMode:', intelligentSearchMode);
 
   async function analyzeSearchResults(results: any[], originalQuery: string) {
     searchProgress.status = "analyzing";
@@ -269,7 +249,7 @@ Important: Keep the response concise and ensure it's valid JSON.`;
 
     async function fetchUrlContent(url: string) {
       try {
-        console.log('[Chat] Fetching content from URL:', url);
+        //console.log('[Chat] Fetching content from URL:', url);
         searchProgress.status = "fetching";
         
         const response = await fetch(`/api/fetch-url?url=${encodeURIComponent(url)}`);
@@ -460,7 +440,7 @@ async function performIntelligentWebSearch(query: string, conversationHistory: a
     let analysisText = await streamToText(response);
     analysisText = analysisText.replace(/<think>[\s\S]*?<\/think>/g, '');
     
-    console.log('[Intelligent Chat] Search analysis result:', analysisText);
+    //console.log('[Intelligent Chat] Search analysis result:', analysisText);
     
     // Parse the analysis
     const analysis = JSON.parse(analysisText);
@@ -716,12 +696,7 @@ ${recentMessages}
     }
   }
 
-  // 添加工具选择处理函数
-  function handleToolSelect(toolId: string) {
-    // 根据不同工具实现相应功能
-    console.log(`Selected tool: ${toolId}`);
-    showTools = false;
-  }
+
 
   // 定期保存草稿
   $: if (messageInput) {
@@ -908,7 +883,7 @@ ${recentMessages}
           
           const formattedResults = searchResults.results
             .map((r: any, index: number) => {
-              console.log('[Frontend] Processing result:', index, r);
+              //console.log('[Frontend] Processing result:', index, r);
               // Default search results don't have a type property, they are searchResult type
               if (!r.type || r.type === 'searchResult') {
                 return `[${index + 1}] ${r.title}\nURL: ${r.url}\n${r.description}`;
@@ -920,7 +895,7 @@ ${recentMessages}
             .filter(Boolean)
             .join('\n\n');
           
-          console.log('[Frontend] Formatted results:', formattedResults);
+          //console.log('[Frontend] Formatted results:', formattedResults);
 
           // Fetch user preferences including language
           const userPrefs = await getUserPreferences();
@@ -985,7 +960,7 @@ ${formattedResults}
 </results>`;
           
           console.log('[Frontend] Final content length:', content.length);
-          console.log('[Frontend] Final content preview:', content.substring(0, 500) + '...');
+          //console.log('[Frontend] Final content preview:', content.substring(0, 500) + '...');
 
         } catch (error) {
           console.error('[Chat] Web search flow error:', error);
@@ -1111,8 +1086,9 @@ ${formattedResults}
       await checkAndUpdateSessionTitle();
       
       // Reset web search mode if it was temporarily enabled by intelligent search
+      // This ensures intelligent search decision logic works for the next query
       if (intelligentSearchMode && webSearchMode) {
-        console.log('[Frontend] Resetting web search mode after intelligent search');
+        console.log('[Frontend] Resetting web search mode after intelligent search completion');
         webSearchMode = false;
       }
 
@@ -1135,6 +1111,12 @@ ${formattedResults}
       if (abortController) { // Only reset if not already handled by handleStop
         sending = false;
         abortController = null;
+      }
+      
+      // Always reset web search mode after message processing to ensure intelligent search works for next query
+      if (webSearchMode && intelligentSearchMode) {
+        console.log('[Frontend] Resetting web search mode in finally block to ensure next query works properly');
+        webSearchMode = false;
       }
     }
   }
@@ -1323,29 +1305,9 @@ ${formattedResults}
     <!-- Input part -->
     <div class="border-t flex-shrink-0 bg-white sticky bottom-0 left-0 right-0 z-10">
       <div class="w-full md:max-w-3xl lg:max-w-4xl mx-auto px-3 md:px-4 py-3 md:py-4">
-        <!-- Tool bar -->
+        <!-- Tool bar - Simplified without search buttons -->
         <div class="mb-2 flex items-center gap-2 text-sm text-gray-600 overflow-x-auto pb-1">
-          {#each tools as tool}
-            <button 
-              class="px-2 md:px-3 py-1 md:py-1.5 rounded-full 
-                {tool.id === 'websearch' && webSearchMode ? 'bg-blue-100 text-blue-600' : 
-                 tool.id === 'intelligent-search' && intelligentSearchMode ? 'bg-green-100 text-green-600' : 
-                 'hover:bg-gray-100'} 
-                flex items-center gap-1 md:gap-1.5 whitespace-nowrap"
-              on:click={() => {
-                console.log('Button clicked'); // Debug log
-                tool.toggle();
-              }}
-            >
-              <svelte:component this={tool.icon} class="h-4 w-4" />
-              <span class="text-xs md:text-sm">{tool.label}</span>
-              {#if tool.id === 'intelligent-search' && intelligentSearchMode}
-                <span class="text-xs bg-green-200 text-green-800 px-1 rounded">AI</span>
-              {/if}
-            </button>
-          {/each}
-          
-          <!-- Search progress toggle button -->
+          <!-- Search progress indicator (hidden by default, only shows when searching) -->
           {#if webSearchMode && searchProgress.status !== "idle"}
             <button 
               class="px-2 md:px-3 py-1 md:py-1.5 rounded-full 
