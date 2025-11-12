@@ -101,3 +101,29 @@
 1.  读取 `package.json` 来精确了解所有依赖库及其版本。
 2.  分析 `prisma/schema.prisma` 文件来提供完整的数据库表结构。
 3.  检查核心路由文件 (如 `/src/routes/api/chat/+server.ts`) 来理解具体的业务逻辑实现。
+
+✦ 根据对项目代码的分析，该项目对 MCP (Model Coordination Protocol) 的支持情况如下：1.  MCP适配器 (Adapter)：    项目在 `src/lib/mcp/`
+  目录下实现了一个 MCP适配器 (`adapter.ts`)。     该适配器支持通过 HTTP POST 和 WebSocket 两种方式与 MCP 服务端进行通信。
+  它能够处理 MCP 服务端返回的 SSE (Server-Sent Events) 流式数据。    适配器会根据 McpProviderConfig 中的 baseUrl
+  来判断使用哪种传输方式（WS 或 HTTP）。    *   如果 baseUrl 包含 'mock'，则会返回模拟的响应，用于测试。
+
+   2. 集成测试：    *项目包含针对 MCP 适配器的集成测试 (adapter.integration.test.ts)。
+       * 测试会尝试启动一个本地的 Python MCP 服务端 (server/mcp_server.py)，如果 Python 不可用则会回退到 Node.js 实现的备用服务端
+         (server/mcp_fallback_server.cjs)。
+       * 测试用例会调用适配器向本地服务端发送请求，并验证是否能正确接收 SSE 格式的响应。3.  本地 MCP 服务端：
+       * 项目包含了两个本地 MCP 服务端实现：    Python 版本 (`server/mcp_server.py`)：这是一个功能相对完整的 MCP
+         服务端示例，它依赖于外部的 `mcp` Python 包（如果可用）。它暴露了多个工具，包括一个故意不安全*的 execute_python 工具，以及
+         list_dir, read_file, write_file, save_script, exe_script, autopep8, install 等工具。该脚本还内置了一个备用的 HTTP SSE
+         服务端，当外部 mcp 包不可用时可以运行，以支持集成测试。
+           * Node.js 备用版本 (`server/mcp_fallback_server.js`, `server/mcp_fallback_server.cjs`)：这是一个轻量级的备用 HTTP SSE
+             服务端，同样用于在没有 Python 或外部 mcp 包的环境下进行测试。
+
+   4. 在主应用中的集成： *   在聊天 API 端点 (src/routes/api/chat/[id]/+server.ts) 中，代码会检查模型配置的提供商类型
+      (modelConfig.provider?.type) 是否为 'mcp'。
+       * 如果是 MCP 类型，它会构建一个包含工具描述的系统消息，并调用 callMcpProvider 函数（来自适配器）来与 MCP 服务端通信。
+       * 项目中还有一些 API 路由 (/api/mcp/execpy, /api/mcp/listdir) 和前端代码 (src/routes/chat/+page.svelte,
+         src/routes/chat/[id]/+page.svelte) 直接调用本地 MCP 服务端提供的工具端点。5.  工具调用：    项目设计支持通过
+         MCP服务端调用各种工具，如执行 Python 代码、读写文件、列出目录内容、安装 Python 包等。总结：该项目对 MCP
+         提供了相当全面*的支持。它不仅实现了与 MCP
+         服务端通信的适配器，还包含了本地的服务端实现（用于开发和测试）以及完整的集成测试。在主应用逻辑中，已经集成了对 MCP
+         类型模型的支持，能够根据配置调用 MCP 服务。这表明项目具备了利用 MCP 协议与支持该协议的 AI 模型或服务进行交互的能力。

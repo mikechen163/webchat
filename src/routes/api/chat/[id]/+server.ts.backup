@@ -171,8 +171,7 @@ export async function POST({ request, params, fetch, locals }) {
       modelId,
       temperature = 0.7,
       max_tokens,
-      isSearchAnalysis = false,
-      enableIntelligentSearch = false
+      isSearchAnalysis = false
     } = body || {};
 
     // Validate and normalize effort
@@ -216,57 +215,6 @@ export async function POST({ request, params, fetch, locals }) {
 
 
     // 检查是否是系统指令
-    // Intelligent Search Decision Logic
-    if (enableIntelligentSearch && isSearchAnalysis) {
-      console.log('[Intelligent Search] Starting simplified intelligent search analysis...');
-      
-      try {
-        // Simple rule-based decision logic for now
-        const searchKeywords = [
-          'current', 'latest', 'today', 'now', 'recent', '2024', '2023',
-          'price', 'bitcoin', 'stock', 'crypto', 'market',
-          'news', 'event', 'happened', 'announced',
-          'who won', 'who is', 'what is the current',
-          'weather', 'temperature', 'forecast'
-        ];
-        
-        const noSearchKeywords = [
-          'tell me a story', 'write a story', 'create a story',
-          'calculate', 'solve',
-          'help me with', 'how do i', 'explain',
-          'write', 'create', 'generate'
-        ];
-        
-        const contentLower = content.toLowerCase();
-        
-        // Check if search is needed
-        const needsSearch = searchKeywords.some(keyword => contentLower.includes(keyword.toLowerCase())) &&
-                           !noSearchKeywords.some(keyword => contentLower.includes(keyword.toLowerCase()));
-        
-        console.log('[Intelligent Search] Decision:', { 
-          needsSearch, 
-          content: contentLower,
-          method: 'rule-based (simplified)'
-        });
-        
-        const decision = {
-          requiresSearch: needsSearch,
-          reasoning: needsSearch ? 
-            'Query requires current or factual information that benefits from web search' : 
-            'Query can be answered with general knowledge or is creative/educational in nature',
-          confidence: 85
-        };
-        
-        console.log('[Intelligent Search] Decision result:', decision);
-        
-        // Return the decision as the response
-        return json(decision);
-        
-      } catch (error) {
-        console.log('[Intelligent Search] Simplified decision error:', error);
-      }
-    }
-
     const isSystemPrompt = content.startsWith('Analyze these search results for the query') ||
                           content.startsWith('你是一个有帮助的助手，请基于前面提供的搜索') ||
                           content.startsWith('Analyze this query and extract search') ||
@@ -374,24 +322,6 @@ export async function POST({ request, params, fetch, locals }) {
       });
     }
 
-    // Handle intelligent search results from frontend
-    let enhancedContent = content;
-    let hasSearchResults = false;
-    
-    if (enableIntelligentSearch && !isSearchAnalysis) {
-      console.log('[Server] Processing intelligent search request');
-      
-      // Check if this is a search-enhanced request
-      if (content.includes('基于前面提供的搜索结果') || content.includes('Based on the search results provided')) {
-        console.log('[Server] Detected search-enhanced content request');
-        hasSearchResults = true;
-        
-        // For now, we'll let the frontend handle the search results formatting
-        // The frontend should include the search results in the content
-        enhancedContent = content;
-      }
-    }
-
     // Describe available tools to the model in a strict, machine-readable way.
    const toolDescription = `Available tools:
 
@@ -445,7 +375,7 @@ call execute_python if the code size is less than 800 characters, otherwise use 
 
 
     // Prepend the system tool registration so the model is aware of available tools.
-    const messages = [{ role: 'system', content: toolDescription }, ...history, { role: 'user', content: enhancedContent }];
+    const messages = [{ role: 'system', content: toolDescription }, ...history, { role: 'user', content }];
     let fullAssistantMessage = '';
     let fullReasoningContent = '';
     let reason_content_flag = false;

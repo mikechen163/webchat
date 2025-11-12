@@ -15,7 +15,7 @@
   import SearchProgressDisplay from "$lib/components/SearchProgressDisplay.svelte";
 
   // Add the getFullModelName function
-  function getFullModelName(model: ModelConfig): string {
+  function getFullModelName(model: any): string {
     const providerName = model.provider?.name || "其他";
     return `${providerName}/${model.name}`;
   }
@@ -104,6 +104,7 @@
   // 修改工具栏状态控制
   let showTools = false;
   let webSearchMode = false;
+  let intelligentSearchMode = true; // New intelligent search mode (enabled by default)
   
   // Add search progress state
   let showSearchProgress = false;
@@ -130,6 +131,16 @@
         console.log('Toggled web search mode:', webSearchMode); // Debug log
         return webSearchMode;
       }
+    },
+    {
+      id: 'intelligent-search',
+      label: 'AI Search',
+      icon: Search, // You might want to use a different icon
+      toggle: () => {
+        intelligentSearchMode = !intelligentSearchMode;
+        console.log('Toggled intelligent search mode:', intelligentSearchMode);
+        return intelligentSearchMode;
+      }
     }
   ];
 
@@ -142,6 +153,7 @@
   ];
 
   $: console.log('Current webSearchMode:', webSearchMode); // 响应式调试日志
+  $: console.log('Current intelligentSearchMode:', intelligentSearchMode);
 
   async function analyzeSearchResults(results: any[], originalQuery: string) {
     searchProgress.status = "analyzing";
@@ -405,7 +417,101 @@ Important: Keep the response concise and ensure it's valid JSON.`;
   }
 
   // Helper function for the actual search API call
-  async function performInitialSearch(query: string, conversationHistory: any[] = []) {
+  /**
+   * Intelligent Web Search function using LLM decision making
+   */
+async function performIntelligentWebSearch(query: string, conversationHistory: any[] = []) {
+  console.log('[Intelligent Chat] Starting intelligent web search for:', query);
+  
+  // Reset and show search progress
+  searchProgress = {
+    status: "analyzing",
+    query: query,
+    searchKeywords: "",
+    searchResults: null,
+    analysis: null,
+    error: null,
+    currentSubtask: 0,
+    totalSubtasks: 0,
+    currentKeywords: ""
+  };
+  showSearchProgress = true;
+  
+  try {
+    // Call the new intelligent search API
+    const response = await fetch(`/api/chat/${$page.params.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        content: query,
+        modelId: $selectedModel?.id,
+        temperature: 0.3,
+        max_tokens: 2000,
+        enableIntelligentSearch: true, // Enable intelligent search
+        isSearchAnalysis: true // Flag as search analysis
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Intelligent search failed');
+    }
+
+    // Get the search analysis result
+    let analysisText = await streamToText(response);
+    analysisText = analysisText.replace(/<think>[\s\S]*?<\/think>/g, '');
+    
+    console.log('[Intelligent Chat] Search analysis result:', analysisText);
+    
+    // Parse the analysis
+    const analysis = JSON.parse(analysisText);
+    searchProgress.analysis = analysis;
+    
+    // Now perform the actual web search based on the analysis
+    console.log('[Intelligent Chat] Performing actual web search based on analysis...');
+    
+    // Use the traditional web search but with enhanced queries from analysis
+    let searchResults = [];
+    
+    try {
+      if (analysis.subtasks && analysis.subtasks.length > 0) {
+        // Use the subtasks from analysis for more targeted search
+        console.log('[Intelligent Chat] Using enhanced search with subtasks');
+        const enhancedResults = await performInitialSearch(query, conversationHistory);
+        searchResults = enhancedResults.results || [];
+      } else {
+        // Fall back to basic search
+        console.log('[Intelligent Chat] Using basic search');
+        const basicResults = await executeSearch(query);
+        searchResults = basicResults.results || [];
+      }
+      
+      console.log('[Intelligent Chat] Web search completed, results count:', searchResults.length);
+    } catch (searchError) {
+      console.error('[Intelligent Chat] Web search failed:', searchError);
+      // Return empty results on search failure
+      searchResults = [];
+    }
+    
+    return {
+      query,
+      results: searchResults,
+      analysis: analysis
+    };
+    
+  } catch (error) {
+    console.error('[Intelligent Chat] Intelligent search error:', error);
+    searchProgress.status = "error";
+    searchProgress.error = error.message;
+    
+    // Fall back to traditional web search
+    console.log('[Intelligent Chat] Falling back to traditional web search');
+    return await performWebSearch(query, conversationHistory);
+  } finally {
+    searchProgress.status = "complete";
+  }
+}
+
+async function performInitialSearch(query: string, conversationHistory: any[] = []) {
     try {
       searchProgress.status = "analyzing";
       searchProgress.query = query;
@@ -724,16 +830,87 @@ ${recentMessages}
 
       let content = userMessage;
       
-      if (webSearchMode) {
+      // Intelligent Search Decision
+      if (intelligentSearchMode && !webSearchMode) {
+        // First, let LLM decide if search is needed
         try {
-          // Pass both the user message and conversation history
-          const searchResults = await performWebSearch(userMessage, messages);
+          console.log('[Frontend] Making intelligent search decision...');
+          
+          const decisionResponse = await fetch(`/api/chat/${$page.params.id}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              content: userMessage,
+              modelId: $selectedModel?.id,
+              temperature: 0.3,
+              max_tokens: 500,
+              enableIntelligentSearch: true,
+              isSearchAnalysis: true // This will trigger decision logic only
+            })
+          });
+
+          if (decisionResponse.ok) {
+            const reader = decisionResponse.body?.getReader();
+            let decisionResult = '';
+            
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              decisionResult += new TextDecoder().decode(value);
+            }
+            
+            console.log('[Frontend] Intelligent search decision:', decisionResult);
+            
+            // Parse the decision result
+            try {
+              const decision = JSON.parse(decisionResult);
+              console.log('[Frontend] Parsed decision:', decision);
+              
+              // If decision indicates search is needed, enable web search mode for this query
+              if (decision.requiresSearch) {
+                console.log('[Frontend] LLM decided search is needed, enabling web search');
+                webSearchMode = true; // Temporarily enable for this query
+                console.log('[Frontend] Web search mode enabled:', webSearchMode);
+              } else {
+                console.log('[Frontend] LLM decided search is not needed');
+              }
+            } catch (parseError) {
+              console.log('[Frontend] Failed to parse decision, continuing without search');
+            }
+          }
+        } catch (error) {
+          console.log('[Frontend] Intelligent search decision error:', error);
+          // Continue with normal processing
+        }
+      }
+      
+      if (webSearchMode) {
+        console.log('[Frontend] Web search mode is active, proceeding with web search flow');
+        try {
+          let searchResults;
+          
+          if (intelligentSearchMode) {
+            // Use intelligent web search with LLM decision making
+            console.log('[Chat] Using intelligent web search mode');
+            searchResults = await performIntelligentWebSearch(userMessage, messages);
+          } else {
+            // Use traditional web search
+            console.log('[Chat] Using traditional web search mode');
+            console.log('[Frontend] Calling performWebSearch with intelligent search enabled');
+            searchResults = await performWebSearch(userMessage, messages);
+            console.log('[Frontend] performWebSearch completed:', searchResults);
+          }
           
           //console.log('[Chat] Search results:', searchResults);
 
+          console.log('[Frontend] Raw search results:', searchResults);
+          console.log('[Frontend] Search results count:', searchResults.results?.length || 0);
+          
           const formattedResults = searchResults.results
             .map((r: any, index: number) => {
-              if (r.type === 'searchResult') {
+              console.log('[Frontend] Processing result:', index, r);
+              // Default search results don't have a type property, they are searchResult type
+              if (!r.type || r.type === 'searchResult') {
                 return `[${index + 1}] ${r.title}\nURL: ${r.url}\n${r.description}`;
               } else if (r.type === 'urlContent') {
                 return `Full content from [${index + 1}] ${r.url}:\n\n${r.content.title}:\n\n${r.content.description}:\n\n${r.content.content}`;
@@ -742,6 +919,8 @@ ${recentMessages}
             })
             .filter(Boolean)
             .join('\n\n');
+          
+          console.log('[Frontend] Formatted results:', formattedResults);
 
           // Fetch user preferences including language
           const userPrefs = await getUserPreferences();
@@ -804,6 +983,9 @@ ${userMessage}
 <results>
 ${formattedResults}
 </results>`;
+          
+          console.log('[Frontend] Final content length:', content.length);
+          console.log('[Frontend] Final content preview:', content.substring(0, 500) + '...');
 
         } catch (error) {
           console.error('[Chat] Web search flow error:', error);
@@ -848,6 +1030,14 @@ ${formattedResults}
         }
       }
 
+      console.log('[Frontend] Final API call parameters:', {
+        contentLength: content.length,
+        modelId: $selectedModel?.id,
+        webSearchMode,
+        intelligentSearchMode,
+        enableIntelligentSearch: intelligentSearchMode && webSearchMode
+      });
+      
       const response = await fetch(`/api/chat/${$page.params.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -857,7 +1047,8 @@ ${formattedResults}
           // Use moderate temperature for final response to balance creativity and accuracy
           temperature: 0.7,
           max_tokens: 4000,
-          effort: selectedEffort
+          effort: selectedEffort,
+          enableIntelligentSearch: intelligentSearchMode && webSearchMode // Pass intelligent search flag
         }),
         signal: abortController.signal
       });
@@ -918,7 +1109,12 @@ ${formattedResults}
       }
 
       await checkAndUpdateSessionTitle();
-      webSearchMode = false;
+      
+      // Reset web search mode if it was temporarily enabled by intelligent search
+      if (intelligentSearchMode && webSearchMode) {
+        console.log('[Frontend] Resetting web search mode after intelligent search');
+        webSearchMode = false;
+      }
 
     } catch (e) {
       if (e.name === 'AbortError') {
@@ -1132,7 +1328,9 @@ ${formattedResults}
           {#each tools as tool}
             <button 
               class="px-2 md:px-3 py-1 md:py-1.5 rounded-full 
-                {tool.id === 'websearch' && webSearchMode ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'} 
+                {tool.id === 'websearch' && webSearchMode ? 'bg-blue-100 text-blue-600' : 
+                 tool.id === 'intelligent-search' && intelligentSearchMode ? 'bg-green-100 text-green-600' : 
+                 'hover:bg-gray-100'} 
                 flex items-center gap-1 md:gap-1.5 whitespace-nowrap"
               on:click={() => {
                 console.log('Button clicked'); // Debug log
@@ -1141,6 +1339,9 @@ ${formattedResults}
             >
               <svelte:component this={tool.icon} class="h-4 w-4" />
               <span class="text-xs md:text-sm">{tool.label}</span>
+              {#if tool.id === 'intelligent-search' && intelligentSearchMode}
+                <span class="text-xs bg-green-200 text-green-800 px-1 rounded">AI</span>
+              {/if}
             </button>
           {/each}
           

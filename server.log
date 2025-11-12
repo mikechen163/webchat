@@ -1,0 +1,48 @@
+
+> webchat@0.0.1 dev
+> vite dev
+
+
+  VITE v6.2.0  ready in 600 ms
+
+  ➜  Local:   http://localhost:3000/
+  ➜  Network: http://192.168.5.178:3000/
+  ➜  Network: http://198.18.0.1:3000/
+SvelteKitError: Not found: /.well-known/appspecific/com.chrome.devtools.json
+    at resolve (/Users/mike/work/webchat/node_modules/@sveltejs/kit/src/runtime/server/respond.js:552:13)
+    at resolve (/Users/mike/work/webchat/node_modules/@sveltejs/kit/src/runtime/server/respond.js:352:5)
+    at Object.handle (/Users/mike/work/webchat/src/hooks.server.ts:29:26)
+    at async respond (/Users/mike/work/webchat/node_modules/@sveltejs/kit/src/runtime/server/respond.js:349:20)
+    at async file:///Users/mike/work/webchat/node_modules/@sveltejs/kit/src/exports/vite/dev/index.js:550:22 {
+  status: 404,
+  text: 'Not Found'
+}
+Browserslist: browsers data (caniuse-lite) is 9 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+11:05:52 [vite-plugin-svelte] src/routes/chat/+layout.svelte:310:4 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+11:05:52 [vite-plugin-svelte] src/routes/chat/+layout.svelte:310:4 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+Fetching all models with provider info
+Found 129 models
+11:06:49 [vite] (client) page reload .svelte-kit/generated/client/nodes/0.js
+11:06:49 [vite] (client) page reload .svelte-kit/generated/client/nodes/1.js
+11:06:49 [vite] (client) page reload .svelte-kit/generated/client/nodes/3.js
+11:06:49 [vite] (client) page reload .svelte-kit/generated/client/nodes/9.js
+11:06:49 [vite] (client) page reload .svelte-kit/generated/client/app.js
+11:06:49 [vite] (client) page reload .svelte-kit/generated/client/matchers.js
+11:06:49 [vite] (ssr) page reload .svelte-kit/generated/server/internal.js
+11:06:49 [vite] (client) page reload .svelte-kit/generated/root.js
+11:06:49 [vite] (ssr) page reload .svelte-kit/generated/root.js
+SvelteKitError: Not found: /.well-known/appspecific/com.chrome.devtools.json
+    at resolve (/Users/mike/work/webchat/node_modules/@sveltejs/kit/src/runtime/server/respond.js:552:13)
+    at resolve (/Users/mike/work/webchat/node_modules/@sveltejs/kit/src/runtime/server/respond.js:352:5)
+    at Object.handle (/Users/mike/work/webchat/src/hooks.server.ts:29:26)
+    at async respond (/Users/mike/work/webchat/node_modules/@sveltejs/kit/src/runtime/server/respond.js:349:20)
+    at async file:///Users/mike/work/webchat/node_modules/@sveltejs/kit/src/exports/vite/dev/index.js:550:22 {
+  status: 404,
+  text: 'Not Found'
+}
+Fetching all models with provider info
+Found 129 models
