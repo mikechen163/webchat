@@ -86,20 +86,20 @@ async function generateTitle(messages: any[], locals: any) {
   // Get the user and their preferences
   const { user } = locals.auth || {};
   let modelConfig;
-  
+
   if (user) {
     try {
       // Get user's default model preference
       const userData = await prisma.user.findUnique({
         where: { id: user.id }
       });
-      
+
       if (userData?.defaultModel) {
         // Find the model configuration for the user's preferred model
         modelConfig = await prisma.modelConfig.findFirst({
-          where: { 
+          where: {
             id: userData.defaultModel,
-            enabled: true 
+            enabled: true
           }
         });
       }
@@ -107,18 +107,18 @@ async function generateTitle(messages: any[], locals: any) {
       console.log('Could not access user default model, using system default instead');
     }
   }
-  
+
   // If no user preference or model not found, fall back to system default
   if (!modelConfig) {
     modelConfig = await prisma.modelConfig.findFirst({
       where: { enabled: true }
     });
-    
+
     if (!modelConfig) {
       throw new Error('No enabled model configuration found for title generation');
     }
   }
-  
+
   const prompt = `### Task:
 Generate a concise, 3-5 word title with an emoji summarizing the chat history.
 ### Guidelines:
@@ -142,7 +142,7 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`;
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.0,
     }),
-     agent, // 关键：注入代理配置
+    agent, // 关键：注入代理配置
   });
 
   if (!response.ok) {
@@ -160,8 +160,8 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`;
 
 export async function POST({ request, params, fetch, locals }) {
   try {
-  // const { content, modelId, temperature = 0.7, max_tokens,   isSearchAnalysis = false } = await request.json();
-    
+    // const { content, modelId, temperature = 0.7, max_tokens,   isSearchAnalysis = false } = await request.json();
+
 
     // Read effort from the client. allowed values: 'none' | 'low' | 'medium' | 'high'
     // Default to 'none' if not provided or invalid.
@@ -186,7 +186,7 @@ export async function POST({ request, params, fetch, locals }) {
       }
     }
 
-   // console.log('Effort value set to:', effort);
+    // console.log('Effort value set to:', effort);
 
     // Helper: decide whether this model/provider should receive an effort parameter.
     // Current heuristic:
@@ -216,22 +216,22 @@ export async function POST({ request, params, fetch, locals }) {
 
     // 检查是否是系统指令
     const isSystemPrompt = content.startsWith('Analyze these search results for the query') ||
-                          content.startsWith('你是一个有帮助的助手，请基于前面提供的搜索') ||
-                          content.startsWith('Analyze this query and extract search') ||
-                          content.startsWith('Analyze this query and determine the search strategy') ||
-                          content.startsWith('You are a helpful assistant. Please summarize and organize the information based on the search');
+      content.startsWith('你是一个有帮助的助手，请基于前面提供的搜索') ||
+      content.startsWith('Analyze this query and extract search') ||
+      content.startsWith('Analyze this query and determine the search strategy') ||
+      content.startsWith('You are a helpful assistant. Please summarize and organize the information based on the search');
 
     // If this is search analysis, try to get user's preferred search model
     const { user } = locals.auth || {};
     let preferredModelId = modelId;
-    
+
     if (user && isSearchAnalysis) {
       try {
         // Get user directly for search model preference
         const userData = await prisma.user.findUnique({
           where: { id: user.id }
         });
-        
+
         // Only use searchModel if it exists in the schema and has a value
         if (userData && 'searchModel' in userData && userData.searchModel) {
           preferredModelId = userData.searchModel;
@@ -244,9 +244,9 @@ export async function POST({ request, params, fetch, locals }) {
 
     // 获取指定的模型配置
     let modelConfig = await prisma.modelConfig.findFirst({
-      where: { 
+      where: {
         id: preferredModelId,
-        enabled: true 
+        enabled: true
       },
       include: { provider: true }
     });
@@ -254,13 +254,13 @@ export async function POST({ request, params, fetch, locals }) {
     if (!modelConfig) {
       // If no specific model found, try to get user's default model
       let defaultModelId = null;
-      
+
       if (user) {
         try {
           const userData = await prisma.user.findUnique({
             where: { id: user.id }
           });
-          
+
           // Only use defaultModel if it exists in the schema and has a value
           if (userData && 'defaultModel' in userData && userData.defaultModel) {
             defaultModelId = userData.defaultModel;
@@ -270,25 +270,25 @@ export async function POST({ request, params, fetch, locals }) {
           console.log('Could not access defaultModel preference, using any enabled model instead:', e.message);
         }
       }
-      
+
       const defaultModel = await prisma.modelConfig.findFirst({
-        where: { 
+        where: {
           ...(defaultModelId ? { id: defaultModelId } : {}),
-          enabled: true 
+          enabled: true
         },
         include: { provider: true }
       });
-      
+
       console.log('Falling back to default model:', defaultModel);
-      
+
       if (!defaultModel) {
         throw error(400, "No valid model configuration found");
       }
-      
+
       modelConfig = defaultModel;
     }
 
-  // 获取历史消息并保存用户消息
+    // 获取历史消息并保存用户消息
     const history = await prisma.message.findMany({
       where: { sessionId: params.id },
       orderBy: { createdAt: 'asc' },
@@ -309,7 +309,7 @@ export async function POST({ request, params, fetch, locals }) {
           }
         });
       }
-    }  
+    }
 
     // 只有非系统指令才保存到数据库
     if (!isSystemPrompt) {
@@ -323,7 +323,7 @@ export async function POST({ request, params, fetch, locals }) {
     }
 
     // Describe available tools to the model in a strict, machine-readable way.
-   const toolDescription = `Available tools:
+    const toolDescription = `Available tools:
 
  
 1) **execute_python**: Executes Python code in a subprocess  
@@ -366,6 +366,11 @@ export async function POST({ request, params, fetch, locals }) {
    - Uses uv for fast, modern package installation  
    - Returns: Status message indicating success or installation error  
 
+8) **web_search**: Performs a web search using a local search engine
+   - Call format: {"tool":"web_search","query":"<search query>"}
+   - query: The search terms
+   - Returns: JSON object with search results
+
 ---
 
 call execute_python if the code size is less than 800 characters, otherwise use the save_script tool to save the code and then call exe_script to execute it.
@@ -382,9 +387,9 @@ call execute_python if the code size is less than 800 characters, otherwise use 
     let fcontent = '';
 
 
-    
-    
-  console.log('Making API request:', {
+
+
+    console.log('Making API request:', {
       command: content.substring(0, 50),
       baseUrl: modelConfig.baseUrl,
       model: modelConfig.model,
@@ -393,20 +398,20 @@ call execute_python if the code size is less than 800 characters, otherwise use 
       ...(max_tokens && { max_tokens })
     });
 
-     let response
+    let response
     // Check if it's OpenAI base URL and O1/O3 model
     //const isOpenAIUrl = modelConfig.baseUrl.includes('api.openai.com');
     //const isO1O3Model = modelConfig.model.startsWith('o4') || modelConfig.model.startsWith('o3');
 
-        // Decide support for effort and compute mapped parameter
-        const isOpenAIUrl = (modelConfig.baseUrl || '').includes('api.openai.com');
-        const isO1O3Model = (modelConfig.model || '').includes('o4') || (modelConfig.model || '').includes('o3') || (modelConfig.model || '').includes('gpt-5');
-        const modelSupportsEffort = supportsEffortForModel(modelConfig);
-        const mappedEffort = mapEffortToProviderParam(effort);
-        const isOpenRouterUrl = (modelConfig.baseUrl || '').includes('openrouter');
-      
+    // Decide support for effort and compute mapped parameter
+    const isOpenAIUrl = (modelConfig.baseUrl || '').includes('api.openai.com');
+    const isO1O3Model = (modelConfig.model || '').includes('o4') || (modelConfig.model || '').includes('o3') || (modelConfig.model || '').includes('gpt-5');
+    const modelSupportsEffort = supportsEffortForModel(modelConfig);
+    const mappedEffort = mapEffortToProviderParam(effort);
+    const isOpenRouterUrl = (modelConfig.baseUrl || '').includes('openrouter');
 
-   
+
+
     if (modelConfig.provider?.type === 'mcp') {
       // When using MCP providers, include a system/tool registration message so the model knows available tools
       const toolDescription = `TOOLS:\n- execute_python: Executes Python code. Call with JSON: {"tool":"execute_python","code":"<python code>","timeout":<seconds>,"cwd":null}. Return value should be text output.`;
@@ -420,7 +425,7 @@ call execute_python if the code size is less than 800 characters, otherwise use 
         modelConfig.provider,
         mcpMessages
       );
-    } else if ( isO1O3Model) {
+    } else if (isO1O3Model) {
       // Format messages for O1/O3 models
       const formattedMessages = messages.map(msg => ({
         role: msg.role,
@@ -433,58 +438,58 @@ call execute_python if the code size is less than 800 characters, otherwise use 
       // Special request body for O1/O3 models
       //const requestBody = {
 
-       const requestBody: any = {  
-       
+      const requestBody: any = {
+
         model: modelConfig.model,
         messages: formattedMessages,
         response_format: {
           type: 'text'
         },
 
-      
-       // reasoning_effort: 'high',
-            // Insert reasoning_effort only when the model/provider supports it and client requested non-none
-            ...(modelSupportsEffort && mappedEffort ? { reasoning_effort: mappedEffort } : {}),
-          
+
+        // reasoning_effort: 'high',
+        // Insert reasoning_effort only when the model/provider supports it and client requested non-none
+        ...(modelSupportsEffort && mappedEffort ? { reasoning_effort: mappedEffort } : {}),
+
         stream: true
       };
-   
 
-      
 
-     // console.log('Request Body:', requestBody);
-       response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
+
+
+      // console.log('Request Body:', requestBody);
+      response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${modelConfig.apiKey}`,
         },
         body: JSON.stringify(requestBody),
-         agent // 关键：注入代理配置
+        agent // 关键：注入代理配置
       });
-     
 
-  } else {
+
+    } else {
       // Original request configuration remains for other models
-    
-     response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${modelConfig.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: modelConfig.model,
-        messages,
-        stream: true,
-        temperature,
-        ...(max_tokens && { max_tokens }) // Only include max_tokens if it's provided
-      }),
-       agent // 关键：注入代理配置
-    });
-  }
 
-  if (!response.ok) {
+      response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${modelConfig.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: modelConfig.model,
+          messages,
+          stream: true,
+          temperature,
+          ...(max_tokens && { max_tokens }) // Only include max_tokens if it's provided
+        }),
+        agent // 关键：注入代理配置
+      });
+    }
+
+    if (!response.ok) {
       console.error('API response error:', response.status, response.statusText);
       throw new Error(`OpenAI API error: ${response.status}`);
     }
@@ -498,20 +503,20 @@ call execute_python if the code size is less than 800 characters, otherwise use 
           let buffer = '';
           let totalTokens = 0;
           let currentMessage = '';
-          
-       
+
+
           const decoder = new TextDecoder('utf-8'); // 在外层复用
           const encoder = new TextEncoder(); // 如果需要把字符串转为 Uint8Array 再 enqueue
 
           while (true) {
             const { done, value } = await reader.read();
-            
+
             if (done) {
-             
+
               //controller.enqueue(`\ndata: {"tokens": ${totalTokens}}\n\n`);
               // 只有非系统指令且不是JSON响应时才保存assistant消息
               // console.log('Saving assistant message:', fullAssistantMessage);
-              
+
               // Remove <think>...</think> content before saving
               const filteredMessage = fullAssistantMessage.replace(/<think>.*?<\/think>/g, '');
 
@@ -550,87 +555,103 @@ call execute_python if the code size is less than 800 characters, otherwise use 
                 // }
 
 
-// function extractFirstToolCall(text) {
-//   // 优先从 ```json 代码块里取（如果你让模型按这种格式输出）
-//   const block = text.match(/```json\s*([\s\S]*?)\s*```/i);
-//   if (block) return JSON.parse(block[1]);
-  
-//   const start = text.indexOf('{"tool":');
-//   if (start === -1) return null;
+                // function extractFirstToolCall(text) {
+                //   // 优先从 ```json 代码块里取（如果你让模型按这种格式输出）
+                //   const block = text.match(/```json\s*([\s\S]*?)\s*```/i);
+                //   if (block) return JSON.parse(block[1]);
 
-//   console.log(text );
+                //   const start = text.indexOf('{"tool":');
+                //   if (start === -1) return null;
 
-//   let depth = 0;
-//   let inString = false;
-//   let escape = false;
+                //   console.log(text );
 
-//   for (let i = start; i < text.length; i++) {
-//     const ch = text[i];
+                //   let depth = 0;
+                //   let inString = false;
+                //   let escape = false;
 
-//     if (escape) { escape = false; continue; }
-//     if (ch === '\\') { escape = true; continue; }
-//     if (ch === '"') { inString = !inString; continue; }
+                //   for (let i = start; i < text.length; i++) {
+                //     const ch = text[i];
 
-//     if (!inString) {
-//       if (ch === '{') depth++;
-//       else if (ch === '}') {
-//         depth--;
-//         if (depth === 0) {
-//           const jsonStr = text.slice(start, i + 1);
-//           return JSON.parse(jsonStr);
-//         }
-//       }
-//     }
-//   }
-//   throw new Error('Unclosed JSON object starting at {"tool":');
-// }
+                //     if (escape) { escape = false; continue; }
+                //     if (ch === '\\') { escape = true; continue; }
+                //     if (ch === '"') { inString = !inString; continue; }
+
+                //     if (!inString) {
+                //       if (ch === '{') depth++;
+                //       else if (ch === '}') {
+                //         depth--;
+                //         if (depth === 0) {
+                //           const jsonStr = text.slice(start, i + 1);
+                //           return JSON.parse(jsonStr);
+                //         }
+                //       }
+                //     }
+                //   }
+                //   throw new Error('Unclosed JSON object starting at {"tool":');
+                // }
 
 
 
-      
-if (toolJsonMatch) {
-  try {
-    const toolCall = JSON.parse(filteredMessage);
-  
-    //const toolCall = extractFirstToolCall(toolJsonMatch[0]);
-   // console.log('Detected tool call:', toolCall);
-    
 
-    if (toolCall.tool) {
-      // Call local MCP server
-      const mcpUrl = process.env.LOCAL_MCP_URL || 'http://127.0.0.1:33333';
-      const execRes = await fetch(`${mcpUrl}/tools/${toolCall.tool}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(toolCall)
-      });
+                if (toolJsonMatch) {
+                  try {
+                    const toolCall = JSON.parse(filteredMessage);
 
-      let toolOutput;
-      try {
-        const execData = await execRes.json();
-        toolOutput = execData.result || execData.items || execData.error || JSON.stringify(execData);
-      } catch (e) {
-        toolOutput = await execRes.text();
-      }
+                    //const toolCall = extractFirstToolCall(toolJsonMatch[0]);
+                    // console.log('Detected tool call:', toolCall);
 
-      const toolOutputText = `\n\n[Tool ${toolCall.tool} output]:\n${toolOutput}\n`;
 
-      //console.log(toolOutputText);
+                    if (toolCall.tool) {
+                      let toolOutput;
 
-      // Stream tool output to client
-      try {
-        controller.enqueue(toolOutputText);
-      } catch (e) {
-        console.error('Failed to enqueue tool output:', e);
-      }
+                      if (toolCall.tool === 'web_search') {
+                        try {
+                          const searchUrl = `http://127.0.0.1:5100/?q=${encodeURIComponent(toolCall.query)}`;
+                          const searchRes = await fetch(searchUrl);
+                          if (!searchRes.ok) {
+                            toolOutput = `Error: Search service returned status ${searchRes.status}`;
+                          } else {
+                            const searchData = await searchRes.json();
+                            toolOutput = JSON.stringify(searchData);
+                          }
+                        } catch (e) {
+                          toolOutput = `Error performing web search: ${e.message}`;
+                        }
+                      } else {
+                        // Call local MCP server
+                        const mcpUrl = process.env.LOCAL_MCP_URL || 'http://127.0.0.1:33333';
+                        const execRes = await fetch(`${mcpUrl}/tools/${toolCall.tool}`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(toolCall)
+                        });
 
-      // Append tool output to message to be saved
-      finalMessageToSave = filteredMessage + toolOutputText;
-    }
-  } catch (e) {
-    console.error('Failed to parse or execute tool call:', e);
-  }
-}
+                        try {
+                          const execData = await execRes.json();
+                          toolOutput = execData.result || execData.items || execData.error || JSON.stringify(execData);
+                        } catch (e) {
+                          toolOutput = await execRes.text();
+                        }
+                      }
+
+                      const toolOutputText = `\n\n[Tool ${toolCall.tool} output]:\n${toolOutput}\n`;
+
+                      //console.log(toolOutputText);
+
+                      // Stream tool output to client
+                      try {
+                        controller.enqueue(toolOutputText);
+                      } catch (e) {
+                        console.error('Failed to enqueue tool output:', e);
+                      }
+
+                      // Append tool output to message to be saved
+                      finalMessageToSave = filteredMessage + toolOutputText;
+                    }
+                  } catch (e) {
+                    console.error('Failed to parse or execute tool call:', e);
+                  }
+                }
               } catch (e) {
                 console.error('Tool detection error:', e);
               }
@@ -665,31 +686,31 @@ if (toolJsonMatch) {
               break;
             }
 
-              // value 可能是 Uint8Array 或 ArrayBuffer
-  const chunk = value instanceof Uint8Array ? value : new Uint8Array(value);
-  // 流式解码，避免在 chunk 边界处插入替代字符
-  buffer += decoder.decode(chunk, { stream: true });
+            // value 可能是 Uint8Array 或 ArrayBuffer
+            const chunk = value instanceof Uint8Array ? value : new Uint8Array(value);
+            // 流式解码，避免在 chunk 边界处插入替代字符
+            buffer += decoder.decode(chunk, { stream: true });
 
-  // 可选：调试每个 chunk 的字节（16 进制）
-  // console.log('chunk hex:', Array.from(chunk).map(b => b.toString(16).padStart(2,'0')).join(' '));
+            // 可选：调试每个 chunk 的字节（16 进制）
+            // console.log('chunk hex:', Array.from(chunk).map(b => b.toString(16).padStart(2,'0')).join(' '));
 
-  // 以兼容 CRLF/LF 的方式切分行
-  const lines = buffer.split(/\r?\n/);
+            // 以兼容 CRLF/LF 的方式切分行
+            const lines = buffer.split(/\r?\n/);
 
 
-           // buffer += new TextDecoder().decode(value);
-           // const lines = buffer.split('\n');
+            // buffer += new TextDecoder().decode(value);
+            // const lines = buffer.split('\n');
             buffer = lines.pop() || '';
 
             for (const line of lines) {
               const trimmedLine = line.trim();
               if (!trimmedLine || trimmedLine === 'data: [DONE]') continue;
-              
+
               if (trimmedLine.startsWith('data: ')) {
                 try {
                   const jsonStr = trimmedLine.slice(6);
                   const json = JSON.parse(jsonStr);
-                  
+
                   // 处理不同类型的内容并统计 tokens
                   if (json.choices?.[0]?.delta?.content) {
                     const content = json.choices[0].delta.content;
@@ -697,11 +718,11 @@ if (toolJsonMatch) {
                     fullAssistantMessage += content;
                     controller.enqueue(content);
                   }
-                  
+
                   // 处理推理内容
                   if (json.choices?.[0]?.delta?.reasoning_content || json.choices?.[0]?.delta?.reasoning) {
                     const reasoning = json.choices[0].delta.reasoning_content || json.choices[0].delta.reasoning;
-                    
+
                     const formattedReasoning = reason_content_flag ? reasoning : '<think>' + reasoning;
                     controller.enqueue(formattedReasoning);
                     reason_content_flag = true;
@@ -718,7 +739,7 @@ if (toolJsonMatch) {
               }
             }
           }
-          
+
           controller.close();
         } catch (e) {
           console.error('Stream processing error:', e);
@@ -747,11 +768,11 @@ export const GET = async ({ params, locals }) => {
     const session = await prisma.session.findUnique({
       where: { id: params.id }
     });
-    
+
     if (!session) {
       throw error(404, "Session not found");
     }
-    
+
     // Get messages
     const messages = await prisma.message.findMany({
       where: { sessionId: params.id },
@@ -763,7 +784,7 @@ export const GET = async ({ params, locals }) => {
         createdAt: true
       }
     });
-    
+
     // Return both session and messages
     return json({
       session,
