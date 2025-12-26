@@ -86,11 +86,27 @@ class McpProcessManager extends EventEmitter {
             command = '/opt/homebrew/bin/node';
         }
 
+        console.log(`[MCP ${config.id}] Resolved command: ${command}`);
+
+        // Ensure PATH includes common locations for node/npx
+        const currentPath = process.env.PATH || '';
+        const extraPaths = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
+        const newPath = extraPaths.filter(p => !currentPath.includes(p)).join(':') + (currentPath ? ':' + currentPath : '');
+
+        const enhancedEnv = {
+            ...process.env,
+            ...config.env,
+            PATH: newPath
+        };
+
+        // Debug PATH being used
+        console.log(`[MCP ${config.id}] Using PATH: ${newPath.substring(0, 200)}...`);
+
         const proc = spawn(command, config.args, {
             stdio: ['pipe', 'pipe', 'pipe'],
             shell: false,  // Don't use shell - direct execution for proper stdio capture
             cwd: process.cwd(),
-            env: { ...process.env, ...config.env }
+            env: enhancedEnv
         });
 
         const mcpProcess: McpProcess = {
@@ -103,7 +119,12 @@ class McpProcessManager extends EventEmitter {
 
         // Handle stdout data
         proc.stdout?.on('data', (data: Buffer) => {
-            this.handleStdout(mcpProcess, data.toString());
+            const str = data.toString();
+            // Log first part of stdout to confirm data reception
+            if (mcpProcess.buffer.length === 0) {
+                console.log(`[MCP ${config.id}] First stdout received:`, str.substring(0, 200));
+            }
+            this.handleStdout(mcpProcess, str);
         });
 
         // Handle stderr
@@ -147,16 +168,17 @@ class McpProcessManager extends EventEmitter {
             let ready = false;
             const readyTimeout = setTimeout(() => {
                 if (!ready) {
-                    console.log(`[MCP ${config.id}] Ready timeout, proceeding...`);
+                    console.log(`[MCP ${config.id}] Ready timeout (30s), proceeding...`);
                     resolve();
                 }
-            }, 10000); // Wait up to 10 seconds for ready message
+            }, 30000); // Wait up to 30 seconds for ready message (npx may need to download package)
 
             const checkReady = (data: Buffer) => {
                 const str = data.toString();
                 if (str.includes('running on stdio') || str.includes('MCP') || str.includes('ready') || str.includes('Server')) {
                     ready = true;
                     clearTimeout(readyTimeout);
+                    console.log(`[MCP ${config.id}] Server ready message detected`);
                     resolve();
                 }
             };
