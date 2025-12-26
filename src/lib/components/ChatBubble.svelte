@@ -92,13 +92,36 @@
 
 			// Generic handler for ANY tool output format: [Tool <name> output]: <content>
 			// This catches sequentialthinking, weather, or any other dynamic MCP tool.
-			const genericToolMatch = raw.match(/\[Tool\s+([\w-_]+)\s+output\]:([\s\S]*)/);
-			if (genericToolMatch) {
-				const toolName = genericToolMatch[1];
-				const content = genericToolMatch[2].trim();
+			// Also extract any final LLM text that comes after the last tool output.
+			const toolOutputPattern = /\[Tool\s+([\w-_]+)\s+output\]:/g;
+			const allToolMatches = [...raw.matchAll(toolOutputPattern)];
+
+			if (allToolMatches.length > 0) {
+				// Find the last tool output marker
+				const lastMatch = allToolMatches[allToolMatches.length - 1];
+				const lastToolOutputStart = lastMatch.index! + lastMatch[0].length;
+				const afterLastOutput = raw.slice(lastToolOutputStart);
+
+				// The tool output is usually a JSON block, find where it ends
+				// Look for text that doesn't start with { or whitespace before {
+				let toolResultContent = '';
+				let finalText = '';
+
+				// Try to find a JSON block at the start
+				const jsonMatch = afterLastOutput.match(/^\s*(\{[\s\S]*?\})\s*([\s\S]*)/);
+				if (jsonMatch) {
+					toolResultContent = jsonMatch[1].trim();
+					finalText = jsonMatch[2].trim();
+				} else {
+					// No JSON, just take all as result
+					toolResultContent = afterLastOutput.trim();
+				}
+
 				return {
-					code: '', // No code for generic tools, just result
-					result: content
+					code: '',
+					result: toolResultContent,
+					thought: '',
+					finalText: finalText
 				};
 			}
 
@@ -308,6 +331,77 @@
 		}
 	});
 
+	// Reusable function to process KaTeX math expressions
+	function processKatexMath(text: string): string {
+		if (typeof window === 'undefined' || !(window as any).katex) {
+			return text;
+		}
+
+		let processed = text;
+
+		// Handle display math \[...\] format (commonly used by LLMs)
+		processed = processed.replace(/\\\[([\s\S]+?)\\\]/g, (match: string, math: string) => {
+			try {
+				const cleanMath = math.trim();
+				const rendered = (window as any).katex.renderToString(cleanMath, {
+					displayMode: true,
+					throwOnError: false
+				});
+				return `<div class="katex-display-wrapper">${rendered}</div>`;
+			} catch (e) {
+				console.warn('KaTeX display math error (\\[...\\]):', e, 'for:', math);
+				return match;
+			}
+		});
+
+		// Handle display math ($$...$$)
+		processed = processed.replace(/\$\$([^$]+?)\$\$/g, (match: string, math: string) => {
+			try {
+				const cleanMath = math.trim();
+				const rendered = (window as any).katex.renderToString(cleanMath, {
+					displayMode: true,
+					throwOnError: false
+				});
+				return `<div class="katex-display-wrapper">${rendered}</div>`;
+			} catch (e) {
+				console.warn('KaTeX display math error ($$...$$):', e, 'for:', math);
+				return match;
+			}
+		});
+
+		// Handle inline math \(...\) format (commonly used by LLMs)
+		processed = processed.replace(/\\\((.+?)\\\)/g, (match: string, math: string) => {
+			try {
+				const cleanMath = math.trim();
+				const rendered = (window as any).katex.renderToString(cleanMath, {
+					displayMode: false,
+					throwOnError: false
+				});
+				return `<span class="katex-inline-wrapper">${rendered}</span>`;
+			} catch (e) {
+				console.warn('KaTeX inline math error (\\(...\\)):', e, 'for:', math);
+				return match;
+			}
+		});
+
+		// Handle inline math ($...$)
+		processed = processed.replace(/\$([^$\n]+?)\$/g, (match: string, math: string) => {
+			try {
+				const cleanMath = math.trim();
+				const rendered = (window as any).katex.renderToString(cleanMath, {
+					displayMode: false,
+					throwOnError: false
+				});
+				return `<span class="katex-inline-wrapper">${rendered}</span>`;
+			} catch (e) {
+				console.warn('KaTeX inline math error ($...$):', e, 'for:', math);
+				return match;
+			}
+		});
+
+		return processed;
+	}
+
 	// Process the content to handle reasoning sections and apply markdown
 	$: htmlContent = ((katexIsReady) => {
 		// Dependency injection
@@ -338,59 +432,23 @@
 		}
 
 		// Process math expressions with KaTeX BEFORE markdown processing
-		if (typeof window !== 'undefined' && (window as any).katex) {
-			// console.log('Processing math with KaTeX for content:', processed.substring(0, 100));
-
-			// Handle display math ($$...$$) first
-			processed = processed.replace(/\$\$([^$]+?)\$\$/g, (match: string, math: string) => {
-				try {
-					const cleanMath = math.trim();
-					// console.log('Rendering display math:', cleanMath);
-					const rendered = (window as any).katex.renderToString(cleanMath, {
-						displayMode: true,
-						throwOnError: false
-					});
-					return `<div class="katex-display-wrapper">${rendered}</div>`;
-				} catch (e) {
-					console.warn('KaTeX display math error:', e, 'for:', math);
-					return match;
-				}
-			});
-
-			// Handle inline math ($...$) after display math - use simpler regex
-			processed = processed.replace(/\$([^$\n]+?)\$/g, (match: string, math: string) => {
-				// Skip if this is part of a display math (already processed)
-				if (
-					processed.includes(`<div class="katex-display-wrapper">`) &&
-					processed.includes(match)
-				) {
-					return match;
-				}
-				try {
-					const cleanMath = math.trim();
-					console.log('Rendering inline math:', cleanMath);
-					const rendered = (window as any).katex.renderToString(cleanMath, {
-						displayMode: false,
-						throwOnError: false
-					});
-					return `<span class="katex-inline-wrapper">${rendered}</span>`;
-				} catch (e) {
-					console.warn('KaTeX inline math error:', e, 'for:', math);
-					return match;
-				}
-			});
-		} else {
-			console.log(
-				'KaTeX not available, window.katex:',
-				typeof window !== 'undefined' ? !!(window as any).katex : 'no window'
-			);
-		}
+		processed = processKatexMath(processed);
 
 		// Apply markdown processing (marked returns string in sync mode)
 		let html = marked(processed) as string;
 
 		return html;
 	})(katexLoaded); // Pass the reactive variable here
+
+	// Reactive: process finalText with KaTeX + markdown when needed
+	$: processedFinalText = ((katexIsReady, finalText) => {
+		if (!finalText) return '';
+		let processed = finalText;
+		if (katexIsReady) {
+			processed = processKatexMath(processed);
+		}
+		return marked(processed) as string;
+	})(katexLoaded, toolParsed?.finalText);
 
 	$: formattedTime = (() => {
 		try {
@@ -529,6 +587,13 @@
 									<pre class="whitespace-pre-wrap text-sm text-gray-900">{toolParsed.result}</pre>
 								</div>
 							{/if}
+						</div>
+					{/if}
+
+					<!-- Display the final LLM response (after all tool calls) - always visible -->
+					{#if toolParsed?.finalText}
+						<div class="prose mt-4 max-w-none">
+							{@html processedFinalText}
 						</div>
 					{/if}
 				{:else}
