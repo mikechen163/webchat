@@ -670,6 +670,43 @@ export async function POST({ request, params, fetch, locals }) {
 
 
                     if (toolCall.tool) {
+                      // --- Schema-based Argument Sanitization ---
+                      // The LLM often outputs strings for booleans/numbers (e.g. "true", "1").
+                      // We use the known schema to coerce them back to correct types before execution.
+                      const serverConfig = mcpToolMap.get(toolCall.tool);
+                      if (serverConfig) {
+                        const toolDef = serverConfig.tools.find(t => t.name === toolCall.tool);
+                        if (toolDef?.inputSchema?.properties) {
+                          for (const [key, value] of Object.entries(toolCall)) {
+                            if (key === 'tool') continue;
+                            const propSchema = toolDef.inputSchema.properties[key];
+                            if (!propSchema) continue;
+
+                            if (typeof value === 'string') {
+                              if (propSchema.type === 'boolean') {
+                                if (value.toLowerCase() === 'true') toolCall[key] = true;
+                                if (value.toLowerCase() === 'false') toolCall[key] = false;
+                              } else if (propSchema.type === 'integer' || propSchema.type === 'number') {
+                                const num = Number(value);
+                                if (!isNaN(num)) {
+                                  toolCall[key] = num;
+                                } else {
+                                  // If conversion fails (NaN), remove the key so it doesn't fail validation with "expected number"
+                                  delete toolCall[key];
+                                }
+                              }
+                            }
+
+                            // Special handling for optional integer fields that default to 0/empty string but require >= 1 in schema
+                            // e.g., prompt sends "revisesThought": "" -> becomes 0 -> fails validation (>=1)
+                            if ((propSchema.type === 'integer' || propSchema.type === 'number') && (toolCall[key] === 0 || toolCall[key] === '')) {
+                              delete toolCall[key];
+                            }
+                          }
+                        }
+                      }
+                      // ------------------------------------------
+
                       let toolOutput;
 
                       if (toolCall.tool === 'web_search') {
@@ -736,7 +773,7 @@ export async function POST({ request, params, fetch, locals }) {
 
                       // Stream tool output to client
                       try {
-                        controller.enqueue(toolOutputText);
+                        controller.enqueue(encoder.encode(toolOutputText));
                       } catch (e) {
                         console.error('Failed to enqueue tool output:', e);
                       }
