@@ -175,32 +175,16 @@ async function buildDynamicToolDescription(userId: string | undefined): Promise<
   description: string;
   mcpToolMap: Map<string, McpServerWithTools>;
 }> {
-  const baseTools = `Available tools:
-
-1) **execute_python**: Executes Python code in a subprocess  
-   - Call format: {"tool":"execute_python","code":"<python code>","timeout":5,"cwd":null} 
-   - timeout: Maximum execution time in seconds (default: 300)  
-   - cwd: Working directory (optional, defaults to repo root)  
-   - Returns: JSON object with result string containing stdout, stderr, and return code  
-
-2) **install**: Installs a Python package using uv pip install  
-   - Call format: {"tool":"install","package":"requests"}  
-   - package: Name of the package to install (e.g., "numpy", "requests==2.28.0")  
-   - Uses uv for fast, modern package installation  
-   - Returns: Status message indicating success or installation error  
-
-3) **web_search**: Performs a web search using a local search engine
-   - Call format: {"tool":"web_search","query":"<search query>"}
-   - query: The search terms
-   - Returns: JSON object with search results`;
-
   // Map tool names to their MCP server config
   const mcpToolMap = new Map<string, McpServerWithTools>();
 
-  // If no user, return base tools only
+  // Base prompt header
+  const header = `Available tools (call by outputting a JSON object with "tool" field):`;
+
+  // If no user, return empty tools
   if (!userId) {
     return {
-      description: baseTools + `\n\n---\n\n#### Example Tool Call (Valid Output Format)\n{"tool":"execute_python","code":"print('Hello world!')","timeout":5}`,
+      description: header + `\n\nNo MCP tools configured. Please enable MCP servers in settings.\n\n#### Example Tool Call Format\n{"tool":"<tool_name>","param1":"value1","param2":"value2"}`,
       mcpToolMap
     };
   }
@@ -219,14 +203,14 @@ async function buildDynamicToolDescription(userId: string | undefined): Promise<
 
     if (userMcpServers.length === 0) {
       return {
-        description: baseTools + `\n\n---\n\n#### Example Tool Call (Valid Output Format)\n{"tool":"execute_python","code":"print('Hello world!')","timeout":5}`,
+        description: header + `\n\nNo MCP tools configured. Please enable MCP servers in settings.\n\n#### Example Tool Call Format\n{"tool":"<tool_name>","param1":"value1","param2":"value2"}`,
         mcpToolMap
       };
     }
 
-    // Build additional tool descriptions from MCP servers
-    let toolIndex = 4; // Start after the 3 built-in tools
-    let additionalTools = '\n\n--- MCP Server Tools ---\n';
+    // Build tool descriptions from MCP servers
+    let toolIndex = 1;
+    let toolDescriptions = '';
 
     for (const userMcp of userMcpServers) {
       const server = userMcp.mcpServer;
@@ -235,7 +219,7 @@ async function buildDynamicToolDescription(userId: string | undefined): Promise<
       const tools = server.tools ? JSON.parse(server.tools) : [];
       if (tools.length === 0) continue;
 
-      additionalTools += `\n### From ${server.name}:\n`;
+      toolDescriptions += `\n\n### From ${server.name}:\n`;
 
       for (const tool of tools) {
         // Add to the tool map for routing
@@ -250,30 +234,33 @@ async function buildDynamicToolDescription(userId: string | undefined): Promise<
           tools: tools
         });
 
-        additionalTools += `\n${toolIndex}) **${tool.name}**: ${tool.description || 'No description'}\n`;
-        additionalTools += `   - Call format: {"tool":"${tool.name}"`;
+        toolDescriptions += `\n${toolIndex}) **${tool.name}**: ${tool.description || 'No description'}\n`;
+        toolDescriptions += `   - Call format: {"tool":"${tool.name}"`;
 
         // Add input schema properties if available
         if (tool.inputSchema?.properties) {
           const props = Object.entries(tool.inputSchema.properties);
           for (const [propName] of props) {
-            additionalTools += `,"${propName}":"<value>"`;
+            toolDescriptions += `,"${propName}":"<value>"`;
           }
         }
-        additionalTools += '}\n';
+        toolDescriptions += '}\n';
 
         toolIndex++;
       }
     }
 
-    const fullDescription = baseTools + additionalTools +
-      `\n---\n\n#### Example Tool Call (Valid Output Format)\n{"tool":"execute_python","code":"print('Hello world!')","timeout":5}`;
+    // Generate example from first available tool
+    const firstTool = mcpToolMap.size > 0 ? Array.from(mcpToolMap.keys())[0] : 'tool_name';
+    const exampleFormat = `\n---\n\n#### Example Tool Call (Valid Output Format)\n{"tool":"${firstTool}",...}`;
+
+    const fullDescription = header + toolDescriptions + exampleFormat;
 
     return { description: fullDescription, mcpToolMap };
   } catch (e) {
     console.error('Error building dynamic tool description:', e);
     return {
-      description: baseTools + `\n\n---\n\n#### Example Tool Call (Valid Output Format)\n{"tool":"execute_python","code":"print('Hello world!')","timeout":5}`,
+      description: header + `\n\nError loading MCP tools. Please check server configuration.`,
       mcpToolMap
     };
   }
@@ -609,58 +596,46 @@ export async function POST({ request, params, fetch, locals }) {
     async function executeToolCall(toolCall: any): Promise<string> {
       let toolOutput: string;
 
-      if (toolCall.tool === 'web_search') {
-        try {
-          const searchUrl = `http://127.0.0.1:5100/?q=${encodeURIComponent(toolCall.query)}`;
-          const searchRes = await fetch(searchUrl);
-          if (!searchRes.ok) {
-            toolOutput = `Error: Search service returned status ${searchRes.status}`;
-          } else {
-            const searchData = await searchRes.json();
-            toolOutput = JSON.stringify(searchData);
-          }
-        } catch (e) {
-          toolOutput = `Error performing web search: ${(e as Error).message}`;
+      // Check if tool is from a registered MCP server
+      const mcpServer = mcpToolMap.get(toolCall.tool);
+
+      if (mcpServer) {
+        // Route to third-party MCP server via adapter
+        const result = await callMcpTool(
+          {
+            id: mcpServer.id,
+            name: mcpServer.name,
+            baseUrl: mcpServer.baseUrl,
+            command: mcpServer.command,
+            args: mcpServer.args,
+            apiKey: mcpServer.apiKey,
+            transport: mcpServer.transport as 'http' | 'ws' | 'stdio'
+          },
+          toolCall.tool,
+          toolCall
+        );
+
+        if (result.success) {
+          toolOutput = typeof result.result === 'string'
+            ? result.result
+            : JSON.stringify(result.result);
+        } else {
+          toolOutput = `Error: ${result.error}`;
         }
       } else {
-        const mcpServer = mcpToolMap.get(toolCall.tool);
-
-        if (mcpServer) {
-          const result = await callMcpTool(
-            {
-              id: mcpServer.id,
-              name: mcpServer.name,
-              baseUrl: mcpServer.baseUrl,
-              command: mcpServer.command,
-              args: mcpServer.args,
-              apiKey: mcpServer.apiKey,
-              transport: mcpServer.transport as 'http' | 'ws' | 'stdio'
-            },
-            toolCall.tool,
-            toolCall
-          );
-
-          if (result.success) {
-            toolOutput = typeof result.result === 'string'
-              ? result.result
-              : JSON.stringify(result.result);
-          } else {
-            toolOutput = `Error: ${result.error}`;
-          }
-        } else {
-          const mcpUrl = process.env.LOCAL_MCP_URL || 'http://127.0.0.1:33333';
+        // Fallback: try local MCP server (for backward compatibility)
+        const mcpUrl = process.env.LOCAL_MCP_URL || 'http://127.0.0.1:33333';
+        try {
           const execRes = await fetch(`${mcpUrl}/tools/${toolCall.tool}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(toolCall)
           });
 
-          try {
-            const execData = await execRes.json() as any;
-            toolOutput = execData.result || execData.items || execData.error || JSON.stringify(execData);
-          } catch (e) {
-            toolOutput = await execRes.text();
-          }
+          const execData = await execRes.json() as any;
+          toolOutput = execData.result || execData.items || execData.error || JSON.stringify(execData);
+        } catch (e) {
+          toolOutput = `Error: Tool "${toolCall.tool}" not found in any registered MCP server and local fallback failed: ${(e as Error).message}`;
         }
       }
 
