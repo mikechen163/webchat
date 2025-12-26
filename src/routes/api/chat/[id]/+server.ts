@@ -644,6 +644,53 @@ export async function POST({ request, params, fetch, locals }) {
 
     // Helper function to sanitize tool arguments based on schema
     function sanitizeToolArgs(toolCall: any): any {
+      // Helper: convert shorthand date ranges to YYYY-MM-DDtoYYYY-MM-DD format
+      function convertDateRange(value: string): string | null {
+        const today = new Date();
+        const formatDate = (d: Date) => d.toISOString().split('T')[0];
+
+        const lowerValue = value.toLowerCase().trim();
+        let startDate: Date | null = null;
+
+        // Handle shortcuts like "month", "week", "day", "year"
+        if (lowerValue === 'month' || lowerValue === '1month' || lowerValue === '1m') {
+          startDate = new Date(today);
+          startDate.setMonth(startDate.getMonth() - 1);
+        } else if (lowerValue === 'week' || lowerValue === '1week' || lowerValue === '1w' || lowerValue === '7d') {
+          startDate = new Date(today);
+          startDate.setDate(startDate.getDate() - 7);
+        } else if (lowerValue === 'day' || lowerValue === '1day' || lowerValue === '1d' || lowerValue === '24h') {
+          startDate = new Date(today);
+          startDate.setDate(startDate.getDate() - 1);
+        } else if (lowerValue === 'year' || lowerValue === '1year' || lowerValue === '1y') {
+          startDate = new Date(today);
+          startDate.setFullYear(startDate.getFullYear() - 1);
+        } else {
+          // Handle patterns like "30d", "90d", "2w", "3m"
+          const match = lowerValue.match(/^(\d+)(d|w|m|y)$/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            const unit = match[2];
+            startDate = new Date(today);
+            if (unit === 'd') startDate.setDate(startDate.getDate() - num);
+            else if (unit === 'w') startDate.setDate(startDate.getDate() - num * 7);
+            else if (unit === 'm') startDate.setMonth(startDate.getMonth() - num);
+            else if (unit === 'y') startDate.setFullYear(startDate.getFullYear() - num);
+          }
+        }
+
+        if (startDate) {
+          return `${formatDate(startDate)}to${formatDate(today)}`;
+        }
+
+        // Already in correct format?
+        if (/^\d{4}-\d{2}-\d{2}to\d{4}-\d{2}-\d{2}$/.test(value)) {
+          return value;
+        }
+
+        return null; // Unable to convert
+      }
+
       const serverConfig = mcpToolMap.get(toolCall.tool);
       if (serverConfig) {
         const toolDef = serverConfig.tools.find(t => t.name === toolCall.tool);
@@ -654,15 +701,38 @@ export async function POST({ request, params, fetch, locals }) {
             if (!propSchema) continue;
 
             if (typeof value === 'string') {
+              // Boolean conversion
               if (propSchema.type === 'boolean') {
                 if ((value as string).toLowerCase() === 'true') toolCall[key] = true;
                 if ((value as string).toLowerCase() === 'false') toolCall[key] = false;
-              } else if (propSchema.type === 'integer' || propSchema.type === 'number') {
+              }
+              // Number/Integer conversion
+              else if (propSchema.type === 'integer' || propSchema.type === 'number') {
                 const num = Number(value);
                 if (!isNaN(num)) {
                   toolCall[key] = num;
                 } else {
                   delete toolCall[key];
+                }
+              }
+              // Date range format conversion (for fields with regex pattern like YYYY-MM-DDtoYYYY-MM-DD)
+              // Check for date pattern in schema OR common date field names
+              else if (
+                propSchema.type === 'string' && (
+                  (propSchema.pattern && (
+                    propSchema.pattern.includes('\\d{4}') ||
+                    propSchema.pattern.includes('d{4}') ||
+                    propSchema.pattern.includes('YYYY') ||
+                    propSchema.pattern.includes('[0-9]{4}')
+                  )) ||
+                  key.toLowerCase().includes('date') ||
+                  key.toLowerCase() === 'freshness'
+                )
+              ) {
+                const converted = convertDateRange(value as string);
+                if (converted) {
+                  toolCall[key] = converted;
+                  console.log(`[Sanitize] Converted date range "${value}" to "${converted}"`);
                 }
               }
             }

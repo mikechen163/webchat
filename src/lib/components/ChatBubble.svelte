@@ -19,6 +19,13 @@
 	let copiedCode = false;
 	let copiedResult = false;
 
+	// Tool output visibility - collapsed by default
+	let showToolDetails = false;
+
+	function toggleToolDetails() {
+		showToolDetails = !showToolDetails;
+	}
+
 	// Function to get the processed content without reasoning sections for copying
 	function getProcessedContentForCopy(): string {
 		let processed = content;
@@ -430,72 +437,100 @@
 
 				<!-- new: special rendering for execute_python tool messages -->
 				{#if isExecutePython}
-					<div class="space-y-3">
-						{#if toolParsed?.thought}
-							<div class="tool-block relative rounded border border-blue-200 bg-blue-50 p-3">
-								<div class="mb-2 flex items-center justify-between">
-									<div class="text-xs text-blue-700">Thought</div>
-									<button
-										class="rounded p-1 text-blue-500 hover:text-blue-700 focus:outline-none"
-										on:click={copyThought}
-										aria-label="Copy thought"
-									>
-										{#if copiedThought}
-											<Check class="h-4 w-4 text-green-500" />
-										{:else}
-											<ClipboardCopy class="h-4 w-4" />
-										{/if}
-									</button>
-								</div>
-								<pre class="whitespace-pre-wrap text-sm text-gray-800"><code
-										>{toolParsed.thought}</code
-									></pre>
-							</div>
-						{/if}
-
-						{#if toolParsed?.code}
-							<div class="tool-block relative rounded border border-gray-200 bg-gray-50 p-3">
-								<div class="mb-2 flex items-center justify-between">
-									<div class="text-xs text-gray-600">{'code'}</div>
-									<button
-										class="rounded p-1 text-gray-500 hover:text-gray-700 focus:outline-none"
-										on:click={copyCode}
-										aria-label="Copy code"
-									>
-										{#if copiedCode}
-											<Check class="h-4 w-4 text-green-500" />
-										{:else}
-											<ClipboardCopy class="h-4 w-4" />
-										{/if}
-									</button>
-								</div>
-								<pre class="whitespace-pre-wrap text-sm"><code>{toolParsed.code}</code></pre>
-							</div>
-						{/if}
-
-						{#if toolParsed?.result}
-							<div class="tool-block relative rounded border border-gray-200 bg-gray-200 p-3">
-								<div class="mb-2 flex items-center justify-between">
-									<div class="text-xs text-gray-600">{'result'}</div>
-
-									<!-- 按钮：提升可读性 -->
-									<button
-										class="rounded p-1 text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
-										on:click={copyResult}
-										aria-label="Copy result"
-									>
-										{#if copiedResult}
-											<Check class="h-4 w-4 text-green-500" />
-										{:else}
-											<ClipboardCopy class="h-4 w-4" />
-										{/if}
-									</button>
-								</div>
-
-								<pre class="whitespace-pre-wrap text-sm text-gray-900">{toolParsed.result}</pre>
-							</div>
-						{/if}
+					<!-- Tool details toggle button -->
+					<div class="tool-toggle mb-2">
+						<button
+							class="flex items-center gap-1 rounded border border-gray-300 bg-gray-100 px-2 py-1 text-xs text-gray-600 hover:bg-gray-200"
+							on:click={toggleToolDetails}
+						>
+							{#if showToolDetails}
+								<ChevronUp class="h-3 w-3" />
+								<span>Hide tool details</span>
+							{:else}
+								<ChevronDown class="h-3 w-3" />
+								<span
+									>Show tool details ({toolParsed?.thought ? 'thought' : ''}{toolParsed?.code
+										? toolParsed?.thought
+											? ', code'
+											: 'code'
+										: ''}{toolParsed?.result
+										? toolParsed?.thought || toolParsed?.code
+											? ', result'
+											: 'result'
+										: ''})</span
+								>
+							{/if}
+						</button>
 					</div>
+
+					{#if showToolDetails}
+						<div class="space-y-3">
+							{#if toolParsed?.thought}
+								<div class="tool-block relative rounded border border-blue-200 bg-blue-50 p-3">
+									<div class="mb-2 flex items-center justify-between">
+										<div class="text-xs text-blue-700">Thought</div>
+										<button
+											class="rounded p-1 text-blue-500 hover:text-blue-700 focus:outline-none"
+											on:click={copyThought}
+											aria-label="Copy thought"
+										>
+											{#if copiedThought}
+												<Check class="h-4 w-4 text-green-500" />
+											{:else}
+												<ClipboardCopy class="h-4 w-4" />
+											{/if}
+										</button>
+									</div>
+									<pre class="whitespace-pre-wrap text-sm text-gray-800"><code
+											>{toolParsed.thought}</code
+										></pre>
+								</div>
+							{/if}
+
+							{#if toolParsed?.code}
+								<div class="tool-block relative rounded border border-gray-200 bg-gray-50 p-3">
+									<div class="mb-2 flex items-center justify-between">
+										<div class="text-xs text-gray-600">{'code'}</div>
+										<button
+											class="rounded p-1 text-gray-500 hover:text-gray-700 focus:outline-none"
+											on:click={copyCode}
+											aria-label="Copy code"
+										>
+											{#if copiedCode}
+												<Check class="h-4 w-4 text-green-500" />
+											{:else}
+												<ClipboardCopy class="h-4 w-4" />
+											{/if}
+										</button>
+									</div>
+									<pre class="whitespace-pre-wrap text-sm"><code>{toolParsed.code}</code></pre>
+								</div>
+							{/if}
+
+							{#if toolParsed?.result}
+								<div class="tool-block relative rounded border border-gray-200 bg-gray-200 p-3">
+									<div class="mb-2 flex items-center justify-between">
+										<div class="text-xs text-gray-600">{'result'}</div>
+
+										<!-- 按钮：提升可读性 -->
+										<button
+											class="rounded p-1 text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
+											on:click={copyResult}
+											aria-label="Copy result"
+										>
+											{#if copiedResult}
+												<Check class="h-4 w-4 text-green-500" />
+											{:else}
+												<ClipboardCopy class="h-4 w-4" />
+											{/if}
+										</button>
+									</div>
+
+									<pre class="whitespace-pre-wrap text-sm text-gray-900">{toolParsed.result}</pre>
+								</div>
+							{/if}
+						</div>
+					{/if}
 				{:else}
 					{@html htmlContent}
 				{/if}
