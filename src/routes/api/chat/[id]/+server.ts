@@ -557,6 +557,150 @@ export async function POST({ request, params, fetch, locals }) {
       });
     }
 
+    const MAX_TOOL_ITERATIONS = 10;
+
+    // Helper function to make LLM API call
+    async function makeLLMRequest(msgs: any[]) {
+      if (modelConfig.provider?.type === 'mcp') {
+        const mcpToolDesc = `TOOLS:\n- execute_python: Executes Python code. Call with JSON: {"tool":"execute_python","code":"<python code>","timeout":<seconds>,"cwd":null}. Return value should be text output.`;
+        const mcpMessages = [{ role: 'system', content: mcpToolDesc }, ...msgs];
+        return await callMcpProvider(modelConfig.provider, mcpMessages);
+      } else if (isO1O3Model) {
+        const formattedMessages = msgs.map(msg => ({
+          role: msg.role,
+          content: [{ type: 'text', text: msg.content }]
+        }));
+        const requestBody: any = {
+          model: modelConfig.model,
+          messages: formattedMessages,
+          response_format: { type: 'text' },
+          ...(modelSupportsEffort && mappedEffort ? { reasoning_effort: mappedEffort } : {}),
+          stream: true
+        };
+        return await fetch(`${modelConfig.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${modelConfig.apiKey}`,
+          },
+          body: JSON.stringify(requestBody),
+          agent
+        });
+      } else {
+        return await fetch(`${modelConfig.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${modelConfig.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: modelConfig.model,
+            messages: msgs,
+            stream: true,
+            temperature,
+            ...(max_tokens && { max_tokens })
+          }),
+          agent
+        });
+      }
+    }
+
+    // Helper function to execute a tool call
+    async function executeToolCall(toolCall: any): Promise<string> {
+      let toolOutput: string;
+
+      if (toolCall.tool === 'web_search') {
+        try {
+          const searchUrl = `http://127.0.0.1:5100/?q=${encodeURIComponent(toolCall.query)}`;
+          const searchRes = await fetch(searchUrl);
+          if (!searchRes.ok) {
+            toolOutput = `Error: Search service returned status ${searchRes.status}`;
+          } else {
+            const searchData = await searchRes.json();
+            toolOutput = JSON.stringify(searchData);
+          }
+        } catch (e) {
+          toolOutput = `Error performing web search: ${(e as Error).message}`;
+        }
+      } else {
+        const mcpServer = mcpToolMap.get(toolCall.tool);
+
+        if (mcpServer) {
+          const result = await callMcpTool(
+            {
+              id: mcpServer.id,
+              name: mcpServer.name,
+              baseUrl: mcpServer.baseUrl,
+              command: mcpServer.command,
+              args: mcpServer.args,
+              apiKey: mcpServer.apiKey,
+              transport: mcpServer.transport as 'http' | 'ws' | 'stdio'
+            },
+            toolCall.tool,
+            toolCall
+          );
+
+          if (result.success) {
+            toolOutput = typeof result.result === 'string'
+              ? result.result
+              : JSON.stringify(result.result);
+          } else {
+            toolOutput = `Error: ${result.error}`;
+          }
+        } else {
+          const mcpUrl = process.env.LOCAL_MCP_URL || 'http://127.0.0.1:33333';
+          const execRes = await fetch(`${mcpUrl}/tools/${toolCall.tool}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(toolCall)
+          });
+
+          try {
+            const execData = await execRes.json() as any;
+            toolOutput = execData.result || execData.items || execData.error || JSON.stringify(execData);
+          } catch (e) {
+            toolOutput = await execRes.text();
+          }
+        }
+      }
+
+      return toolOutput;
+    }
+
+    // Helper function to sanitize tool arguments based on schema
+    function sanitizeToolArgs(toolCall: any): any {
+      const serverConfig = mcpToolMap.get(toolCall.tool);
+      if (serverConfig) {
+        const toolDef = serverConfig.tools.find(t => t.name === toolCall.tool);
+        if (toolDef?.inputSchema?.properties) {
+          for (const [key, value] of Object.entries(toolCall)) {
+            if (key === 'tool') continue;
+            const propSchema = toolDef.inputSchema.properties[key];
+            if (!propSchema) continue;
+
+            if (typeof value === 'string') {
+              if (propSchema.type === 'boolean') {
+                if ((value as string).toLowerCase() === 'true') toolCall[key] = true;
+                if ((value as string).toLowerCase() === 'false') toolCall[key] = false;
+              } else if (propSchema.type === 'integer' || propSchema.type === 'number') {
+                const num = Number(value);
+                if (!isNaN(num)) {
+                  toolCall[key] = num;
+                } else {
+                  delete toolCall[key];
+                }
+              }
+            }
+
+            if ((propSchema.type === 'integer' || propSchema.type === 'number') && (toolCall[key] === 0 || toolCall[key] === '')) {
+              delete toolCall[key];
+            }
+          }
+        }
+      }
+      return toolCall;
+    }
+
     if (!response.ok) {
       console.error('API response error:', response.status, response.statusText);
       throw new Error(`OpenAI API error: ${response.status}`);
@@ -564,312 +708,153 @@ export async function POST({ request, params, fetch, locals }) {
 
     const stream = new ReadableStream({
       async start(controller) {
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error('Stream error');
+        const decoder = new TextDecoder('utf-8');
+        const encoder = new TextEncoder();
+
+        // Working copy of messages for the agentic loop
+        let loopMessages = [...messages];
+        let allAssistantContent = ''; // Accumulates ALL content across iterations for saving
 
         try {
-          let buffer = '';
-          let totalTokens = 0;
-          let currentMessage = '';
+          // === AGENTIC TOOL LOOP ===
+          for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
+            console.log(`[Agentic Loop] Iteration ${iteration + 1}/${MAX_TOOL_ITERATIONS}`);
 
+            // Make LLM request (use initial response for first iteration)
+            let currentResponse = iteration === 0 ? response : await makeLLMRequest(loopMessages);
 
-          const decoder = new TextDecoder('utf-8'); // 在外层复用
-          const encoder = new TextEncoder(); // 如果需要把字符串转为 Uint8Array 再 enqueue
-
-          while (true) {
-            const { done, value } = await reader.read();
-
-            if (done) {
-
-              //controller.enqueue(`\ndata: {"tokens": ${totalTokens}}\n\n`);
-              // 只有非系统指令且不是JSON响应时才保存assistant消息
-              // console.log('Saving assistant message:', fullAssistantMessage);
-
-              // Remove <think>...</think> content before saving
-              const filteredMessage = fullAssistantMessage.replace(/<think>.*?<\/think>/g, '');
-
-              // Detect a tool call encoded as JSON containing a "tool" field (example: {"tool":"execute_python","code":"..."})
-              let finalMessageToSave = filteredMessage;
-              try {
-                const toolJsonMatch = filteredMessage.match(/\{[\s\S]*?"tool"[\s\S]*?\}/);
-                // if (toolJsonMatch) {
-                //   try {
-                //     const toolCall = JSON.parse(toolJsonMatch[0]);
-                //     if (toolCall.tool === 'execute_python' && toolCall.code) {
-                //       // Execute the python code via local MCP tool endpoint
-                //       const mcpUrl = process.env.LOCAL_MCP_URL || 'http://127.0.0.1:33333';
-                //       const execRes = await fetch(`${mcpUrl}/tools/execute_python`, {
-                //         method: 'POST',
-                //         headers: { 'Content-Type': 'application/json' },
-                //         body: JSON.stringify({ code: toolCall.code, timeout: toolCall.timeout || 5, cwd: toolCall.cwd || null })
-                //       });
-                //       const execData = await execRes.json().catch(() => null);
-                //       const execOutput = execData?.result || execData?.error || JSON.stringify(execData);
-                //       const toolOutputText = `\n\n[Tool execute_python output]:\n${execOutput}\n`;
-
-                //       // Stream the tool output to the client as continuation
-                //       try {
-                //         controller.enqueue(toolOutputText);
-                //       } catch (e) {
-                //         console.error('Failed to enqueue tool output:', e);
-                //       }
-
-                //       // Append tool output to message to be saved
-                //       finalMessageToSave = filteredMessage + toolOutputText;
-                //     }
-                //   } catch (e) {
-                //     console.error('Failed to parse tool JSON:', e);
-                //   }
-                // }
-
-
-                // function extractFirstToolCall(text) {
-                //   // 优先从 ```json 代码块里取（如果你让模型按这种格式输出）
-                //   const block = text.match(/```json\s*([\s\S]*?)\s*```/i);
-                //   if (block) return JSON.parse(block[1]);
-
-                //   const start = text.indexOf('{"tool":');
-                //   if (start === -1) return null;
-
-                //   console.log(text );
-
-                //   let depth = 0;
-                //   let inString = false;
-                //   let escape = false;
-
-                //   for (let i = start; i < text.length; i++) {
-                //     const ch = text[i];
-
-                //     if (escape) { escape = false; continue; }
-                //     if (ch === '\\') { escape = true; continue; }
-                //     if (ch === '"') { inString = !inString; continue; }
-
-                //     if (!inString) {
-                //       if (ch === '{') depth++;
-                //       else if (ch === '}') {
-                //         depth--;
-                //         if (depth === 0) {
-                //           const jsonStr = text.slice(start, i + 1);
-                //           return JSON.parse(jsonStr);
-                //         }
-                //       }
-                //     }
-                //   }
-                //   throw new Error('Unclosed JSON object starting at {"tool":');
-                // }
-
-
-
-
-                if (toolJsonMatch) {
-                  try {
-                    const toolCall = JSON.parse(filteredMessage);
-
-                    //const toolCall = extractFirstToolCall(toolJsonMatch[0]);
-                    // console.log('Detected tool call:', toolCall);
-
-
-                    if (toolCall.tool) {
-                      // --- Schema-based Argument Sanitization ---
-                      // The LLM often outputs strings for booleans/numbers (e.g. "true", "1").
-                      // We use the known schema to coerce them back to correct types before execution.
-                      const serverConfig = mcpToolMap.get(toolCall.tool);
-                      if (serverConfig) {
-                        const toolDef = serverConfig.tools.find(t => t.name === toolCall.tool);
-                        if (toolDef?.inputSchema?.properties) {
-                          for (const [key, value] of Object.entries(toolCall)) {
-                            if (key === 'tool') continue;
-                            const propSchema = toolDef.inputSchema.properties[key];
-                            if (!propSchema) continue;
-
-                            if (typeof value === 'string') {
-                              if (propSchema.type === 'boolean') {
-                                if (value.toLowerCase() === 'true') toolCall[key] = true;
-                                if (value.toLowerCase() === 'false') toolCall[key] = false;
-                              } else if (propSchema.type === 'integer' || propSchema.type === 'number') {
-                                const num = Number(value);
-                                if (!isNaN(num)) {
-                                  toolCall[key] = num;
-                                } else {
-                                  // If conversion fails (NaN), remove the key so it doesn't fail validation with "expected number"
-                                  delete toolCall[key];
-                                }
-                              }
-                            }
-
-                            // Special handling for optional integer fields that default to 0/empty string but require >= 1 in schema
-                            // e.g., prompt sends "revisesThought": "" -> becomes 0 -> fails validation (>=1)
-                            if ((propSchema.type === 'integer' || propSchema.type === 'number') && (toolCall[key] === 0 || toolCall[key] === '')) {
-                              delete toolCall[key];
-                            }
-                          }
-                        }
-                      }
-                      // ------------------------------------------
-
-                      let toolOutput;
-
-                      if (toolCall.tool === 'web_search') {
-                        try {
-                          const searchUrl = `http://127.0.0.1:5100/?q=${encodeURIComponent(toolCall.query)}`;
-                          const searchRes = await fetch(searchUrl);
-                          if (!searchRes.ok) {
-                            toolOutput = `Error: Search service returned status ${searchRes.status}`;
-                          } else {
-                            const searchData = await searchRes.json();
-                            toolOutput = JSON.stringify(searchData);
-                          }
-                        } catch (e) {
-                          toolOutput = `Error performing web search: ${(e as Error).message}`;
-                        }
-                      } else {
-                        // Check if tool is from a third-party MCP server
-                        const mcpServer = mcpToolMap.get(toolCall.tool);
-
-                        if (mcpServer) {
-                          // Route to third-party MCP server via adapter
-                          const result = await callMcpTool(
-                            {
-                              id: mcpServer.id,
-                              name: mcpServer.name,
-                              baseUrl: mcpServer.baseUrl,
-                              command: mcpServer.command,
-                              args: mcpServer.args,
-                              apiKey: mcpServer.apiKey,
-                              transport: mcpServer.transport as 'http' | 'ws' | 'stdio'
-                            },
-                            toolCall.tool,
-                            toolCall
-                          );
-
-                          if (result.success) {
-                            toolOutput = typeof result.result === 'string'
-                              ? result.result
-                              : JSON.stringify(result.result);
-                          } else {
-                            toolOutput = `Error: ${result.error}`;
-                          }
-                        } else {
-                          // Call local MCP server (built-in tools)
-                          const mcpUrl = process.env.LOCAL_MCP_URL || 'http://127.0.0.1:33333';
-                          const execRes = await fetch(`${mcpUrl}/tools/${toolCall.tool}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(toolCall)
-                          });
-
-                          try {
-                            const execData = await execRes.json() as any;
-                            toolOutput = execData.result || execData.items || execData.error || JSON.stringify(execData);
-                          } catch (e) {
-                            toolOutput = await execRes.text();
-                          }
-                        }
-                      }
-
-                      const toolOutputText = `\n\n[Tool ${toolCall.tool} output]:\n${toolOutput}\n`;
-
-                      //console.log(toolOutputText);
-
-                      // Stream tool output to client
-                      try {
-                        controller.enqueue(encoder.encode(toolOutputText));
-                      } catch (e) {
-                        console.error('Failed to enqueue tool output:', e);
-                      }
-
-                      // Append tool output to message to be saved
-                      finalMessageToSave = filteredMessage + toolOutputText;
-                    }
-                  } catch (e) {
-                    console.error('Failed to parse or execute tool call:', e);
-                  }
-                }
-              } catch (e) {
-                console.error('Tool detection error:', e);
-              }
-
-              if (!finalMessageToSave.includes('"completeness":') && !finalMessageToSave.includes('"requiresSearch":')) {
-                await prisma.message.create({
-                  data: {
-                    sessionId: params.id,
-                    role: "assistant",
-                    content: finalMessageToSave
-                  }
-                });
-
-                // 检查是否需要生成标题
-                const messageCount = await prisma.message.count({
-                  where: { sessionId: params.id }
-                });
-
-                if (messageCount === 2) {
-                  fetch(`/api/chat/${params.id}/generate-title`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                      temperature: 0.3,
-                      max_tokens: 2000
-                    })
-                  }).catch(console.error);
-                }
-              }
+            if (iteration > 0 && !currentResponse.ok) {
+              console.error(`[Agentic Loop] LLM request failed at iteration ${iteration + 1}`);
+              controller.enqueue(encoder.encode(`\n\n[Error: LLM request failed at iteration ${iteration + 1}]\n`));
               break;
             }
 
-            // value 可能是 Uint8Array 或 ArrayBuffer
-            const chunk = value instanceof Uint8Array ? value : new Uint8Array(value);
-            // 流式解码，避免在 chunk 边界处插入替代字符
-            buffer += decoder.decode(chunk, { stream: true });
+            const reader = currentResponse.body?.getReader();
+            if (!reader) {
+              console.error('[Agentic Loop] No response body reader');
+              break;
+            }
 
-            // 可选：调试每个 chunk 的字节（16 进制）
-            // console.log('chunk hex:', Array.from(chunk).map(b => b.toString(16).padStart(2,'0')).join(' '));
+            let buffer = '';
+            let iterationAssistantMessage = '';
+            let reason_content_flag_loop = false;
 
-            // 以兼容 CRLF/LF 的方式切分行
-            const lines = buffer.split(/\r?\n/);
+            // Read the stream for this iteration
+            while (true) {
+              const { done, value } = await reader.read();
 
+              if (done) {
+                // Stream finished for this iteration
+                break;
+              }
 
-            // buffer += new TextDecoder().decode(value);
-            // const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
+              const chunk = value instanceof Uint8Array ? value : new Uint8Array(value);
+              buffer += decoder.decode(chunk, { stream: true });
+              const lines = buffer.split(/\r?\n/);
+              buffer = lines.pop() || '';
 
-            for (const line of lines) {
-              const trimmedLine = line.trim();
-              if (!trimmedLine || trimmedLine === 'data: [DONE]') continue;
+              for (const line of lines) {
+                const trimmedLine = line.trim();
+                if (!trimmedLine || trimmedLine === 'data: [DONE]') continue;
 
-              if (trimmedLine.startsWith('data: ')) {
-                try {
-                  const jsonStr = trimmedLine.slice(6);
-                  const json = JSON.parse(jsonStr);
+                if (trimmedLine.startsWith('data: ')) {
+                  try {
+                    const jsonStr = trimmedLine.slice(6);
+                    const json = JSON.parse(jsonStr);
 
-                  // 处理不同类型的内容并统计 tokens
-                  if (json.choices?.[0]?.delta?.content) {
-                    const content = json.choices[0].delta.content;
-                    currentMessage += content;
-                    fullAssistantMessage += content;
-                    controller.enqueue(content);
+                    if (json.choices?.[0]?.delta?.content) {
+                      const content = json.choices[0].delta.content;
+                      iterationAssistantMessage += content;
+                      controller.enqueue(content);
+                    }
+
+                    if (json.choices?.[0]?.delta?.reasoning_content || json.choices?.[0]?.delta?.reasoning) {
+                      const reasoning = json.choices[0].delta.reasoning_content || json.choices[0].delta.reasoning;
+                      const formattedReasoning = reason_content_flag_loop ? reasoning : '<think>' + reasoning;
+                      controller.enqueue(formattedReasoning);
+                      reason_content_flag_loop = true;
+                    } else if (reason_content_flag_loop) {
+                      reason_content_flag_loop = false;
+                      controller.enqueue('</think> <br>');
+                    }
+                  } catch (error) {
+                    continue;
                   }
-
-                  // 处理推理内容
-                  if (json.choices?.[0]?.delta?.reasoning_content || json.choices?.[0]?.delta?.reasoning) {
-                    const reasoning = json.choices[0].delta.reasoning_content || json.choices[0].delta.reasoning;
-
-                    const formattedReasoning = reason_content_flag ? reasoning : '<think>' + reasoning;
-                    controller.enqueue(formattedReasoning);
-                    reason_content_flag = true;
-                  } else if (reason_content_flag) {
-                    // 结束推理部分
-                    reason_content_flag = false;
-                    controller.enqueue('</think> <br>');
-                  }
-
-                } catch (error) {
-                  //console.warn('JSON parse error:', { line: trimmedLine, error });
-                  continue;
                 }
               }
+            }
+
+            // Accumulate content
+            allAssistantContent += iterationAssistantMessage;
+
+            // Check for tool call in this iteration's response
+            const filteredMessage = iterationAssistantMessage.replace(/<think>.*?<\/think>/g, '');
+            const toolJsonMatch = filteredMessage.match(/\{[\s\S]*?"tool"[\s\S]*?\}/);
+
+            if (toolJsonMatch) {
+              try {
+                let toolCall = JSON.parse(filteredMessage);
+
+                if (toolCall.tool) {
+                  console.log(`[Agentic Loop] Tool call detected: ${toolCall.tool}`);
+
+                  // Sanitize arguments
+                  toolCall = sanitizeToolArgs(toolCall);
+
+                  // Execute the tool
+                  const toolOutput = await executeToolCall(toolCall);
+                  const toolOutputText = `\n\n[Tool ${toolCall.tool} output]:\n${toolOutput}\n`;
+
+                  // Stream tool output to client
+                  controller.enqueue(encoder.encode(toolOutputText));
+                  allAssistantContent += toolOutputText;
+
+                  // Append to loop messages for next iteration
+                  // Add assistant's tool call message
+                  loopMessages.push({
+                    role: 'assistant',
+                    content: iterationAssistantMessage
+                  });
+
+                  // Add tool result as a user message (or tool role if supported)
+                  loopMessages.push({
+                    role: 'user',
+                    content: `[Tool Result for ${toolCall.tool}]:\n${toolOutput}`
+                  });
+
+                  // Continue to next iteration
+                  continue;
+                }
+              } catch (e) {
+                console.error('[Agentic Loop] Failed to parse tool call:', e);
+              }
+            }
+
+            // No tool call detected - this is the final response
+            console.log(`[Agentic Loop] No tool call detected, ending loop at iteration ${iteration + 1}`);
+            break;
+          }
+
+          // Save the complete assistant message
+          if (!allAssistantContent.includes('"completeness":') && !allAssistantContent.includes('"requiresSearch":')) {
+            await prisma.message.create({
+              data: {
+                sessionId: params.id,
+                role: "assistant",
+                content: allAssistantContent
+              }
+            });
+
+            const messageCount = await prisma.message.count({
+              where: { sessionId: params.id }
+            });
+
+            if (messageCount === 2) {
+              fetch(`/api/chat/${params.id}/generate-title`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ temperature: 0.3, max_tokens: 2000 })
+              }).catch(console.error);
             }
           }
 
