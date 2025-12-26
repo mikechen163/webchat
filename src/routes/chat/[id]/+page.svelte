@@ -13,14 +13,7 @@
 	import { selectedModel } from '$lib/stores/selectedModel';
 	import { browser } from '$app/environment';
 	import SearchProgressDisplay from '$lib/components/SearchProgressDisplay.svelte';
-	import {
-		Root as Dialog,
-		DialogContent,
-		DialogHeader,
-		DialogTitle,
-		DialogDescription
-	} from '$lib/components/ui/dialog';
-	import { Switch } from '$lib/components/ui/switch';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 
 	// Add the getFullModelName function
 	function getFullModelName(model: ModelConfig): string {
@@ -152,7 +145,7 @@
 	];
 
 	// MCP Tools State
-	let showMcpTools = false;
+
 	let availableMcpServers: any[] = [];
 
 	async function fetchMcpServers() {
@@ -1236,20 +1229,34 @@ ${formattedResults}
 
 					<div class="mx-1 h-5 border-l border-gray-200"></div>
 
-					<!-- MCP Tools Toggle -->
-					<div class="relative">
-						<button
-							class="flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 hover:bg-gray-100 md:gap-1.5 md:px-3 md:py-1.5 {showMcpTools
-								? 'bg-gray-200'
-								: ''}"
-							on:click={() => (showMcpTools = true)}
+					<!-- MCP Tools Menu -->
+					<DropdownMenu.Root>
+						<DropdownMenu.Trigger
+							class="flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 hover:bg-gray-100 data-[state=open]:bg-gray-200 md:gap-1.5 md:px-3 md:py-1.5"
 							title="Manage MCP Tools"
-							type="button"
 						>
 							<Plug class="h-4 w-4" />
 							<span class="text-xs md:text-sm">Tools</span>
-						</button>
-					</div>
+						</DropdownMenu.Trigger>
+						<DropdownMenu.Content class="w-56">
+							<DropdownMenu.Label>MCP Tools</DropdownMenu.Label>
+							<DropdownMenu.Separator />
+							{#each availableMcpServers as server}
+								<DropdownMenu.CheckboxItem
+									checked={server.userEnabled}
+									on:click={(e) => {
+										e.preventDefault();
+										toggleMcpServer(server);
+									}}
+								>
+									<span class="truncate">{server.name}</span>
+								</DropdownMenu.CheckboxItem>
+							{/each}
+							{#if availableMcpServers.length === 0}
+								<div class="px-2 py-1.5 text-sm text-muted-foreground">No servers available</div>
+							{/if}
+						</DropdownMenu.Content>
+					</DropdownMenu.Root>
 					<ModelSelector showFullName={true} />
 
 					<div class="ml-2">
@@ -1320,30 +1327,3 @@ ${formattedResults}
 		</div>
 	</div>
 </div>
-
-<Dialog bind:open={showMcpTools}>
-	<DialogContent class="sm:max-w-[425px]">
-		<DialogHeader>
-			<DialogTitle>MCP Tools</DialogTitle>
-			<DialogDescription>
-				Enable or disable available MCP tools for this chat session.
-			</DialogDescription>
-		</DialogHeader>
-		<div class="grid max-h-[60vh] gap-4 overflow-y-auto py-4">
-			{#each availableMcpServers as server}
-				<div class="flex items-center justify-between space-x-4 rounded-lg border p-4">
-					<div class="flex flex-col space-y-1 overflow-hidden">
-						<span class="truncate text-sm font-medium leading-none">{server.name}</span>
-						{#if server.description}
-							<span class="truncate text-xs text-muted-foreground">{server.description}</span>
-						{/if}
-					</div>
-					<Switch checked={server.userEnabled} onCheckedChange={() => toggleMcpServer(server)} />
-				</div>
-			{/each}
-			{#if availableMcpServers.length === 0}
-				<div class="py-4 text-center text-sm text-muted-foreground">No MCP servers available.</div>
-			{/if}
-		</div>
-	</DialogContent>
-</Dialog>
