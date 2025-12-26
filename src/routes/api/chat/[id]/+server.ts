@@ -1,6 +1,6 @@
 import { error, type RequestHandler } from "@sveltejs/kit";
 import { PrismaClient } from "@prisma/client";
-import { callMcpProvider } from '$lib/mcp/adapter';
+import { callMcpProvider, callMcpTool } from '$lib/mcp/adapter';
 import { streamResponse } from "$lib/utils/stream";
 import { json } from '@sveltejs/kit';
 import { OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL } from '$env/static/private';
@@ -157,6 +157,122 @@ ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}`;
     return null;
   }
 }
+
+// Type for MCP server with tools
+interface McpServerWithTools {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKey: string | null;
+  tools: Array<{ name: string; description: string; inputSchema?: any }>;
+}
+
+// Build dynamic tool descriptions from user's enabled MCP servers
+async function buildDynamicToolDescription(userId: string | undefined): Promise<{
+  description: string;
+  mcpToolMap: Map<string, McpServerWithTools>;
+}> {
+  const baseTools = `Available tools:
+
+1) **execute_python**: Executes Python code in a subprocess  
+   - Call format: {"tool":"execute_python","code":"<python code>","timeout":5,"cwd":null} 
+   - timeout: Maximum execution time in seconds (default: 300)  
+   - cwd: Working directory (optional, defaults to repo root)  
+   - Returns: JSON object with result string containing stdout, stderr, and return code  
+
+2) **install**: Installs a Python package using uv pip install  
+   - Call format: {"tool":"install","package":"requests"}  
+   - package: Name of the package to install (e.g., "numpy", "requests==2.28.0")  
+   - Uses uv for fast, modern package installation  
+   - Returns: Status message indicating success or installation error  
+
+3) **web_search**: Performs a web search using a local search engine
+   - Call format: {"tool":"web_search","query":"<search query>"}
+   - query: The search terms
+   - Returns: JSON object with search results`;
+
+  // Map tool names to their MCP server config
+  const mcpToolMap = new Map<string, McpServerWithTools>();
+
+  // If no user, return base tools only
+  if (!userId) {
+    return {
+      description: baseTools + `\n\n---\n\n#### Example Tool Call (Valid Output Format)\n{"tool":"execute_python","code":"print('Hello world!')","timeout":5}`,
+      mcpToolMap
+    };
+  }
+
+  try {
+    // Get user's enabled MCP servers with their tools
+    const userMcpServers = await prisma.userMcpServer.findMany({
+      where: {
+        userId: userId,
+        enabled: true
+      },
+      include: {
+        mcpServer: true
+      }
+    });
+
+    if (userMcpServers.length === 0) {
+      return {
+        description: baseTools + `\n\n---\n\n#### Example Tool Call (Valid Output Format)\n{"tool":"execute_python","code":"print('Hello world!')","timeout":5}`,
+        mcpToolMap
+      };
+    }
+
+    // Build additional tool descriptions from MCP servers
+    let toolIndex = 4; // Start after the 3 built-in tools
+    let additionalTools = '\n\n--- MCP Server Tools ---\n';
+
+    for (const userMcp of userMcpServers) {
+      const server = userMcp.mcpServer;
+      if (!server.enabled) continue;
+
+      const tools = server.tools ? JSON.parse(server.tools) : [];
+      if (tools.length === 0) continue;
+
+      additionalTools += `\n### From ${server.name}:\n`;
+
+      for (const tool of tools) {
+        // Add to the tool map for routing
+        mcpToolMap.set(tool.name, {
+          id: server.id,
+          name: server.name,
+          baseUrl: server.baseUrl,
+          apiKey: server.apiKey,
+          tools: tools
+        });
+
+        additionalTools += `\n${toolIndex}) **${tool.name}**: ${tool.description || 'No description'}\n`;
+        additionalTools += `   - Call format: {"tool":"${tool.name}"`;
+
+        // Add input schema properties if available
+        if (tool.inputSchema?.properties) {
+          const props = Object.entries(tool.inputSchema.properties);
+          for (const [propName] of props) {
+            additionalTools += `,"${propName}":"<value>"`;
+          }
+        }
+        additionalTools += '}\n';
+
+        toolIndex++;
+      }
+    }
+
+    const fullDescription = baseTools + additionalTools +
+      `\n---\n\n#### Example Tool Call (Valid Output Format)\n{"tool":"execute_python","code":"print('Hello world!')","timeout":5}`;
+
+    return { description: fullDescription, mcpToolMap };
+  } catch (e) {
+    console.error('Error building dynamic tool description:', e);
+    return {
+      description: baseTools + `\n\n---\n\n#### Example Tool Call (Valid Output Format)\n{"tool":"execute_python","code":"print('Hello world!')","timeout":5}`,
+      mcpToolMap
+    };
+  }
+}
+
 
 export async function POST({ request, params, fetch, locals }) {
   try {
@@ -322,62 +438,8 @@ export async function POST({ request, params, fetch, locals }) {
       });
     }
 
-    // Describe available tools to the model in a strict, machine-readable way.
-    const toolDescription = `Available tools:
-
- 
-1) **execute_python**: Executes Python code in a subprocess  
-   - Call format: {"tool":"execute_python","code":"<python code>","timeout":5,"cwd":null} 
-   - timeout: Maximum execution time in seconds (default: 5)  
-   - cwd: Working directory (optional, defaults to repo root)  
-   - Returns: JSON object with result string containing stdout, stderr, and return code  
-
-2) **list_dir**: Lists files in a specified directory  
-   - Call format: {"tool":"list_dir","path":"."}
-   - path: Directory to list (default: current directory)  
-   - Returns: Array of file and subdirectory names as strings  
-
-3) **read_file**: Reads the contents of a text file  
-   - Call format: {"tool":"read_file","filename":"<filepath>"} or {"path":"<filepath>"}
-   - Accepts either filename or path key  
-   - Returns: File content as a string, or error message on failure  
-
-4) **save_script**: Saves Python code to a ".py" file in saved_scripts/  
-   - Call format: {"tool":"save_script","filename":"myscript","code":"<python code here>"}  
-   - filename: Base name (no path, no .., auto-adds ".py" if missing)  
-   - code: Valid Python source to save  
-   - Returns: Status message indicating success or error  
-
-5) **exe_script**: Executes a previously saved script from saved_scripts/ 
-   - Call format: {"tool":"exe_script","filename":"myscript","timeout":5}  
-   - filename: Name of saved script (with or without ".py")  
-   - timeout: Optional, default 5 seconds  
-   - Returns: Output of the script or error (e.g., timeout, not found)  
-
-6) **autopep8**: Formats a Python script file in-place using autopep8  
-   - Call format: {"tool":"autopep8","filename":"saved_scripts/myscript.py"}  
-   - filename: Path to the Python script (must be within allowed directory)  
-   - Modifies the file directly to conform to PEP 8 style  
-   - Returns: Success message or error (e.g., file not found, invalid path)  
-
-7) **install**: Installs a Python package using uv pip install  
-   - Call format: {"tool":"install","package":"requests"}  
-   - package: Name of the package to install (e.g., "numpy", "requests==2.28.0")  
-   - Uses uv for fast, modern package installation  
-   - Returns: Status message indicating success or installation error  
-
-8) **web_search**: Performs a web search using a local search engine
-   - Call format: {"tool":"web_search","query":"<search query>"}
-   - query: The search terms
-   - Returns: JSON object with search results
-
----
-
-call execute_python if the code size is less than 800 characters, otherwise use the save_script tool to save the code and then call exe_script to execute it.
-
-#### Example Tool Call (Valid Output Format)
-{"tool":"execute_python","code":"print('Hello world!')","timeout":5}`;
-
+    // Build dynamic tool description including user's enabled MCP servers
+    const { description: toolDescription, mcpToolMap } = await buildDynamicToolDescription(user?.id);
 
     // Prepend the system tool registration so the model is aware of available tools.
     const messages = [{ role: 'system', content: toolDescription }, ...history, { role: 'user', content }];
@@ -615,22 +677,47 @@ call execute_python if the code size is less than 800 characters, otherwise use 
                             toolOutput = JSON.stringify(searchData);
                           }
                         } catch (e) {
-                          toolOutput = `Error performing web search: ${e.message}`;
+                          toolOutput = `Error performing web search: ${(e as Error).message}`;
                         }
                       } else {
-                        // Call local MCP server
-                        const mcpUrl = process.env.LOCAL_MCP_URL || 'http://127.0.0.1:33333';
-                        const execRes = await fetch(`${mcpUrl}/tools/${toolCall.tool}`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify(toolCall)
-                        });
+                        // Check if tool is from a third-party MCP server
+                        const mcpServer = mcpToolMap.get(toolCall.tool);
 
-                        try {
-                          const execData = await execRes.json();
-                          toolOutput = execData.result || execData.items || execData.error || JSON.stringify(execData);
-                        } catch (e) {
-                          toolOutput = await execRes.text();
+                        if (mcpServer) {
+                          // Route to third-party MCP server via adapter
+                          const result = await callMcpTool(
+                            {
+                              id: mcpServer.id,
+                              name: mcpServer.name,
+                              baseUrl: mcpServer.baseUrl,
+                              apiKey: mcpServer.apiKey
+                            },
+                            toolCall.tool,
+                            toolCall
+                          );
+
+                          if (result.success) {
+                            toolOutput = typeof result.result === 'string'
+                              ? result.result
+                              : JSON.stringify(result.result);
+                          } else {
+                            toolOutput = `Error: ${result.error}`;
+                          }
+                        } else {
+                          // Call local MCP server (built-in tools)
+                          const mcpUrl = process.env.LOCAL_MCP_URL || 'http://127.0.0.1:33333';
+                          const execRes = await fetch(`${mcpUrl}/tools/${toolCall.tool}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(toolCall)
+                          });
+
+                          try {
+                            const execData = await execRes.json() as any;
+                            toolOutput = execData.result || execData.items || execData.error || JSON.stringify(execData);
+                          } catch (e) {
+                            toolOutput = await execRes.text();
+                          }
                         }
                       }
 

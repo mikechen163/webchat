@@ -375,6 +375,34 @@ if __name__ == "__main__":
         import time
 
         class SimpleSseHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                """Handle GET requests for tool listing"""
+                logger.info("SimpleSseHandler GET path=%s", getattr(self, 'path', None))
+                
+                # Return list of available tools
+                if self.path in ['/tools', '/tools/list', '/tools/']:
+                    tools = [
+                        {"name": "execute_python", "description": "Execute Python code in a subprocess", "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, "timeout": {"type": "integer"}, "cwd": {"type": "string"}}}},
+                        {"name": "install", "description": "Install a Python package using uv pip install", "inputSchema": {"type": "object", "properties": {"package": {"type": "string"}}}},
+                        {"name": "list_dir", "description": "List directory contents", "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}}},
+                        {"name": "read_file", "description": "Read file contents", "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}}},
+                        {"name": "write_file", "description": "Write content to file", "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}}}},
+                        {"name": "save_script", "description": "Save Python script to saved_scripts folder", "inputSchema": {"type": "object", "properties": {"filename": {"type": "string"}, "code": {"type": "string"}}}},
+                        {"name": "exe_script", "description": "Execute a saved script", "inputSchema": {"type": "object", "properties": {"filename": {"type": "string"}, "timeout": {"type": "integer"}}}},
+                        {"name": "autopep8", "description": "Format Python file with autopep8", "inputSchema": {"type": "object", "properties": {"filename": {"type": "string"}}}}
+                    ]
+                    resp = json.dumps({"tools": tools})
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(resp.encode('utf-8'))
+                    return
+                
+                # Unknown GET path
+                self.send_response(404)
+                self.end_headers()
+
             def do_POST(self):
                 logger.info("SimpleSseHandler POST path=%s", getattr(self, 'path', None))
                 try:

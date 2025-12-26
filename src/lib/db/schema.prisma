@@ -22,6 +22,7 @@ model User {
   sessions     Session[]
   defaultModel String?
   searchModel  String?
+  userMcpServers UserMcpServer[]
 }
 
 model AuthSession {
@@ -85,3 +86,37 @@ model Provider {
   isCustom     Boolean       @default(false)
   modelConfigs ModelConfig[]
 }
+
+// MCP Server 配置 - 管理员管理
+model McpServer {
+  id          String   @id @default(cuid())
+  name        String   @unique                // 显示名称
+  description String?                         // 描述
+  baseUrl     String                          // MCP Server 地址
+  apiKey      String?                         // 可选认证密钥
+  transport   String   @default("http")       // http | ws | stdio
+  enabled     Boolean  @default(true)         // 是否启用
+  isBuiltIn   Boolean  @default(false)        // 是否内置（如本地 Python MCP）
+  tools       String?                         // 缓存的工具列表 JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  userMcpServers UserMcpServer[]
+}
+
+// 用户-MCP Server 关联 - 用户选择
+model UserMcpServer {
+  id          String    @id @default(cuid())
+  userId      String
+  mcpServerId String
+  enabled     Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mcpServer   McpServer @relation(fields: [mcpServerId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, mcpServerId])
+  @@index([userId])
+  @@index([mcpServerId])
+}
+
