@@ -27,7 +27,10 @@ export const GET: RequestHandler = async ({ params, locals }) => {
             id: mcpServer.id,
             name: mcpServer.name,
             baseUrl: mcpServer.baseUrl,
+            command: mcpServer.command,
+            args: mcpServer.args,
             apiKey: mcpServer.apiKey,
+            transport: mcpServer.transport as 'http' | 'ws' | 'stdio',
         });
 
         // Update the cached tools in database

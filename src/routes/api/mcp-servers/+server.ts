@@ -18,6 +18,8 @@ export const GET: RequestHandler = async ({ locals }) => {
                 name: true,
                 description: true,
                 baseUrl: true,
+                command: true,
+                args: true,
                 transport: true,
                 enabled: true,
                 isBuiltIn: true,
@@ -52,19 +54,27 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
         const data = await request.json();
 
-        // Validate required fields
-        if (!data.name || !data.baseUrl) {
-            return json(
-                { error: 'Name and baseUrl are required' },
-                { status: 400 }
-            );
+        // Validate required fields based on transport
+        if (!data.name) {
+            return json({ error: 'Name is required' }, { status: 400 });
+        }
+        if (data.transport === 'stdio') {
+            if (!data.command) {
+                return json({ error: 'Command is required for Stdio transport' }, { status: 400 });
+            }
+        } else {
+            if (!data.baseUrl) {
+                return json({ error: 'Base URL is required for HTTP/WS transport' }, { status: 400 });
+            }
         }
 
         const mcpServer = await prisma.mcpServer.create({
             data: {
                 name: data.name.trim(),
                 description: data.description?.trim() || null,
-                baseUrl: data.baseUrl.trim(),
+                baseUrl: data.baseUrl?.trim() || '',
+                command: data.command?.trim() || null,
+                args: data.args?.trim() || null,
                 apiKey: data.apiKey?.trim() || null,
                 transport: data.transport || 'http',
                 enabled: data.enabled ?? true,

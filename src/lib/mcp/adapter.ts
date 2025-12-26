@@ -1,15 +1,18 @@
 import fetch from 'node-fetch';
 import WebSocket from 'ws';
 import { createMockMcpResponse } from './mockClient';
+import { processManager } from './process-manager';
 import type { McpTool, McpToolCallResult } from './types';
 
 export type McpProviderConfig = {
   id?: string;
   name?: string;
   baseUrl?: string;
+  command?: string | null;   // Stdio: command to execute
+  args?: string | null;       // Stdio: JSON array of arguments
   apiKey?: string | null;
   wsPath?: string | null;
-  // other fields as needed
+  transport?: 'http' | 'ws' | 'stdio';
 };
 
 function makeSseReaderFromChunks(chunks: Uint8Array[]) {
@@ -136,9 +139,14 @@ export async function callMcpProvider(
 
 /**
  * Discover available tools from an MCP server.
- * Calls the /tools endpoint (or /tools/list) to get tool definitions.
+ * Supports HTTP, WebSocket, and Stdio transport.
  */
 export async function discoverMcpTools(config: McpProviderConfig): Promise<McpTool[]> {
+  // Handle Stdio transport
+  if (config.transport === 'stdio') {
+    return discoverStdioMcpTools(config);
+  }
+
   const base = (config.baseUrl || '').trim();
   const apiKey = config.apiKey || null;
 
@@ -204,12 +212,18 @@ export async function discoverMcpTools(config: McpProviderConfig): Promise<McpTo
 
 /**
  * Call a specific tool on an MCP server.
+ * Supports HTTP, WebSocket, and Stdio transport.
  */
 export async function callMcpTool(
   config: McpProviderConfig,
   toolName: string,
   args: Record<string, any>
 ): Promise<McpToolCallResult> {
+  // Handle Stdio transport
+  if (config.transport === 'stdio') {
+    return callStdioMcpTool(config, toolName, args);
+  }
+
   const base = (config.baseUrl || '').trim();
   const apiKey = config.apiKey || null;
 
@@ -267,3 +281,104 @@ export async function callMcpTool(
   }
 }
 
+/**
+ * Discover tools from a Stdio MCP server.
+ * Spawns the process if not already running, then queries for tools.
+ */
+async function discoverStdioMcpTools(config: McpProviderConfig): Promise<McpTool[]> {
+  if (!config.id) {
+    throw new Error('MCP server id is required for Stdio transport');
+  }
+  if (!config.command) {
+    throw new Error('MCP server command is required for Stdio transport');
+  }
+
+  // Parse args from JSON string
+  let argsArray: string[] = [];
+  if (config.args) {
+    try {
+      argsArray = JSON.parse(config.args);
+    } catch (e) {
+      console.error('Failed to parse MCP args:', e);
+      argsArray = [];
+    }
+  }
+
+  try {
+    // Spawn or get existing process
+    await processManager.spawn({
+      id: config.id,
+      command: config.command,
+      args: argsArray
+    });
+
+    // List tools from the process
+    const tools = await processManager.listTools(config.id);
+    return tools;
+  } catch (e) {
+    console.error('Error discovering Stdio MCP tools:', e);
+    throw new Error(`Failed to discover Stdio tools: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/**
+ * Call a tool on a Stdio MCP server.
+ */
+async function callStdioMcpTool(
+  config: McpProviderConfig,
+  toolName: string,
+  args: Record<string, any>
+): Promise<McpToolCallResult> {
+  if (!config.id) {
+    return { success: false, error: 'MCP server id is required for Stdio transport' };
+  }
+  if (!config.command) {
+    return { success: false, error: 'MCP server command is required for Stdio transport' };
+  }
+
+  // Parse args from JSON string
+  let argsArray: string[] = [];
+  if (config.args) {
+    try {
+      argsArray = JSON.parse(config.args);
+    } catch (e) {
+      console.error('Failed to parse MCP args:', e);
+    }
+  }
+
+  try {
+    // Ensure process is running
+    if (!processManager.isRunning(config.id)) {
+      await processManager.spawn({
+        id: config.id,
+        command: config.command,
+        args: argsArray
+      });
+    }
+
+    // Call the tool
+    const result = await processManager.callTool(config.id, toolName, args);
+
+    // Parse result content
+    let resultContent: string;
+    if (result?.content && Array.isArray(result.content)) {
+      resultContent = result.content
+        .filter((c: any) => c.type === 'text')
+        .map((c: any) => c.text)
+        .join('\n');
+    } else {
+      resultContent = JSON.stringify(result);
+    }
+
+    return {
+      success: true,
+      result: resultContent
+    };
+  } catch (e) {
+    console.error(`Error calling Stdio MCP tool ${toolName}:`, e);
+    return {
+      success: false,
+      error: `Stdio tool call error: ${e instanceof Error ? e.message : String(e)}`
+    };
+  }
+}

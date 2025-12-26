@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -59,6 +60,8 @@
 		name: string;
 		description?: string;
 		baseUrl: string;
+		command?: string;
+		args?: string;
 		transport: string;
 		enabled: boolean;
 		isBuiltIn: boolean;
@@ -71,6 +74,8 @@
 		name: '',
 		description: '',
 		baseUrl: '',
+		command: '',
+		args: '',
 		apiKey: '',
 		transport: 'http',
 		enabled: true
@@ -187,6 +192,8 @@
 			name: server.name,
 			description: server.description || '',
 			baseUrl: server.baseUrl,
+			command: server.command || '',
+			args: server.args || '',
 			apiKey: '',
 			transport: server.transport,
 			enabled: server.enabled
@@ -199,6 +206,8 @@
 			name: '',
 			description: '',
 			baseUrl: '',
+			command: '',
+			args: '',
 			apiKey: '',
 			transport: 'http',
 			enabled: true
@@ -921,6 +930,12 @@
 			editingProviderId = null;
 		}
 	}
+	function handleTransportChange(event) {
+		// Check if event has detail (custom event) or is the value itself
+		const val = event?.detail?.value || event?.value || event;
+		console.log('Transport changed:', val);
+		newMcpServer.transport = typeof val === 'string' ? val : val?.value || val;
+	}
 </script>
 
 <div class="mx-auto h-full max-w-5xl overflow-y-auto px-4 py-8">
@@ -1306,37 +1321,59 @@
 								</div>
 
 								<div>
-									<label for="mcp-url" class="mb-1 block font-medium">Base URL</label>
-									<Input
-										id="mcp-url"
-										bind:value={newMcpServer.baseUrl}
-										placeholder="http://localhost:33333"
-										required
-									/>
-								</div>
-
-								<div>
-									<label for="mcp-key" class="mb-1 block font-medium">API Key (optional)</label>
-									<Input
-										id="mcp-key"
-										type="password"
-										bind:value={newMcpServer.apiKey}
-										placeholder={editingMcpServer ? '••••••••' : 'Optional API key'}
-									/>
-								</div>
-
-								<div>
 									<label for="mcp-transport" class="mb-1 block font-medium">Transport</label>
-									<Select bind:value={newMcpServer.transport}>
+									<Select value={newMcpServer.transport} onSelectedChange={handleTransportChange}>
 										<SelectTrigger>
 											<SelectValue placeholder="Select transport" />
 										</SelectTrigger>
 										<SelectContent>
 											<SelectItem value="http">HTTP</SelectItem>
 											<SelectItem value="ws">WebSocket</SelectItem>
+											<SelectItem value="stdio">Stdio (Local Command)</SelectItem>
 										</SelectContent>
 									</Select>
 								</div>
+
+								{#if newMcpServer.transport === 'stdio'}
+									<div>
+										<label for="mcp-command" class="mb-1 block font-medium">Command</label>
+										<Input
+											id="mcp-command"
+											bind:value={newMcpServer.command}
+											placeholder="npx"
+											required
+										/>
+										<p class="mt-1 text-xs text-gray-500">e.g., npx, python, node</p>
+									</div>
+
+									<div>
+										<label for="mcp-args" class="mb-1 block font-medium"
+											>Arguments (JSON array)</label
+										>
+										<Input id="mcp-args" bind:value={newMcpServer.args} required />
+										<p class="mt-1 text-xs text-gray-500">JSON array of command arguments</p>
+									</div>
+								{:else}
+									<div>
+										<label for="mcp-url" class="mb-1 block font-medium">Base URL</label>
+										<Input
+											id="mcp-url"
+											bind:value={newMcpServer.baseUrl}
+											placeholder="http://localhost:33333"
+											required
+										/>
+									</div>
+
+									<div>
+										<label for="mcp-key" class="mb-1 block font-medium">API Key (optional)</label>
+										<Input
+											id="mcp-key"
+											type="password"
+											bind:value={newMcpServer.apiKey}
+											placeholder={editingMcpServer ? '••••••••' : 'Optional API key'}
+										/>
+									</div>
+								{/if}
 
 								<div class="flex items-center gap-2">
 									<input type="checkbox" id="mcp-enabled" bind:checked={newMcpServer.enabled} />

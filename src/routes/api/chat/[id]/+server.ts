@@ -163,6 +163,9 @@ interface McpServerWithTools {
   id: string;
   name: string;
   baseUrl: string;
+  command: string | null;
+  args: string | null;
+  transport: string;
   apiKey: string | null;
   tools: Array<{ name: string; description: string; inputSchema?: any }>;
 }
@@ -240,6 +243,9 @@ async function buildDynamicToolDescription(userId: string | undefined): Promise<
           id: server.id,
           name: server.name,
           baseUrl: server.baseUrl,
+          command: server.command,
+          args: server.args,
+          transport: server.transport,
           apiKey: server.apiKey,
           tools: tools
         });
@@ -690,7 +696,10 @@ export async function POST({ request, params, fetch, locals }) {
                               id: mcpServer.id,
                               name: mcpServer.name,
                               baseUrl: mcpServer.baseUrl,
-                              apiKey: mcpServer.apiKey
+                              command: mcpServer.command,
+                              args: mcpServer.args,
+                              apiKey: mcpServer.apiKey,
+                              transport: mcpServer.transport as 'http' | 'ws' | 'stdio'
                             },
                             toolCall.tool,
                             toolCall

@@ -12,6 +12,8 @@ export interface McpServerConfig {
     id: string;
     name: string;
     baseUrl: string;
+    command?: string | null;     // Stdio: command to run (npx, python, etc.)
+    args?: string | null;        // Stdio: JSON array of arguments
     apiKey?: string | null;
     transport?: 'http' | 'ws' | 'stdio';
     tools?: McpTool[];
