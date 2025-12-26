@@ -75,11 +75,21 @@ class McpProcessManager extends EventEmitter {
             return existing;
         }
 
-        console.log(`[MCP] Spawning process: ${config.command} ${config.args.join(' ')}`);
+        console.log(`[MCP ${config.id}] Spawning process: ${config.command} ${config.args.join(' ')}`);
 
-        const proc = spawn(config.command, config.args, {
+        // Use direct spawn without shell for proper stdio handling
+        // Resolve full path for common commands (macOS homebrew)
+        let command = config.command;
+        if (command === 'npx') {
+            command = '/opt/homebrew/bin/npx';
+        } else if (command === 'node') {
+            command = '/opt/homebrew/bin/node';
+        }
+
+        const proc = spawn(command, config.args, {
             stdio: ['pipe', 'pipe', 'pipe'],
-            shell: true,
+            shell: false,  // Don't use shell - direct execution for proper stdio capture
+            cwd: process.cwd(),
             env: { ...process.env, ...config.env }
         });
 
@@ -97,8 +107,11 @@ class McpProcessManager extends EventEmitter {
         });
 
         // Handle stderr
+        let stderrBuffer = '';
         proc.stderr?.on('data', (data: Buffer) => {
-            console.error(`[MCP ${config.id}] stderr:`, data.toString());
+            const str = data.toString();
+            stderrBuffer += str;
+            console.log(`[MCP ${config.id}] stderr:`, str);
         });
 
         // Handle process exit
@@ -107,7 +120,7 @@ class McpProcessManager extends EventEmitter {
             this.processes.delete(config.id);
             // Reject all pending requests
             for (const [id, { reject }] of mcpProcess.pendingRequests) {
-                reject(new Error(`Process exited unexpectedly`));
+                reject(new Error(`Process exited unexpectedly (code: ${code}, signal: ${signal}). Stderr: ${stderrBuffer}`));
             }
             mcpProcess.pendingRequests.clear();
         });
@@ -117,6 +130,40 @@ class McpProcessManager extends EventEmitter {
         });
 
         this.processes.set(config.id, mcpProcess);
+
+        // Wait for process to spawn before initializing
+        await new Promise<void>((resolve, reject) => {
+            proc.on('spawn', () => {
+                console.log(`[MCP ${config.id}] Process spawned, PID: ${proc.pid}`);
+                resolve();
+            });
+            proc.on('error', (err) => {
+                reject(err);
+            });
+        });
+
+        // Wait for MCP server to be ready (look for ready message or timeout)
+        await new Promise<void>((resolve) => {
+            let ready = false;
+            const readyTimeout = setTimeout(() => {
+                if (!ready) {
+                    console.log(`[MCP ${config.id}] Ready timeout, proceeding...`);
+                    resolve();
+                }
+            }, 10000); // Wait up to 10 seconds for ready message
+
+            const checkReady = (data: Buffer) => {
+                const str = data.toString();
+                if (str.includes('running on stdio') || str.includes('MCP') || str.includes('ready') || str.includes('Server')) {
+                    ready = true;
+                    clearTimeout(readyTimeout);
+                    resolve();
+                }
+            };
+
+            proc.stderr?.on('data', checkReady);
+            proc.stdout?.on('data', checkReady);
+        });
 
         // Initialize the MCP connection
         try {
@@ -199,7 +246,7 @@ class McpProcessManager extends EventEmitter {
             const timeout = setTimeout(() => {
                 mcpProcess.pendingRequests.delete(id);
                 reject(new Error(`Request timeout: ${method}`));
-            }, 30000);
+            }, 60000);
 
             mcpProcess.pendingRequests.set(id, {
                 resolve: (value) => {
@@ -213,6 +260,7 @@ class McpProcessManager extends EventEmitter {
             });
 
             const message = JSON.stringify(request) + '\n';
+            console.log(`[MCP ${mcpProcess.id}] stdin sending:`, message.substring(0, 500));
             mcpProcess.process.stdin?.write(message);
         });
     }

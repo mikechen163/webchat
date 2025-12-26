@@ -68,6 +68,8 @@
 		tools: any[];
 	}> = [];
 	let showMcpDialog = false;
+	let showImportDialog = false;
+	let importConfigJson = '';
 	let editingMcpServer = false;
 	let editingMcpServerId: string | null = null;
 	let newMcpServer = {
@@ -97,13 +99,19 @@
 			console.error('Error loading MCP servers:', err);
 		}
 	}
-
 	async function addMcpServer() {
 		try {
+			const payload = { ...newMcpServer };
+			// Sanitize transport if it's an object (from Select component)
+			if (typeof payload.transport === 'object' && payload.transport !== null) {
+				// @ts-ignore
+				payload.transport = payload.transport.value || payload.transport;
+			}
+
 			const response = await fetch('/api/mcp-servers', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(newMcpServer)
+				body: JSON.stringify(payload)
 			});
 			if (response.ok) {
 				showToast({ title: 'Success', description: 'MCP Server added successfully' });
@@ -122,10 +130,17 @@
 	async function updateMcpServer() {
 		if (!editingMcpServerId) return;
 		try {
+			const payload = { ...newMcpServer };
+			// Sanitize transport if it's an object (from Select component)
+			if (typeof payload.transport === 'object' && payload.transport !== null) {
+				// @ts-ignore
+				payload.transport = payload.transport.value || payload.transport;
+			}
+
 			const response = await fetch(`/api/mcp-servers/${editingMcpServerId}`, {
 				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(newMcpServer)
+				body: JSON.stringify(payload)
 			});
 			if (response.ok) {
 				showToast({ title: 'Success', description: 'MCP Server updated successfully' });
@@ -182,6 +197,65 @@
 			}
 		} catch (err) {
 			console.error('Error toggling MCP server:', err);
+		}
+	}
+
+	async function importMcpConfig() {
+		try {
+			const config = JSON.parse(importConfigJson);
+			if (!config.mcpServers && !config.servers) {
+				throw new Error('Invalid config format: missing "mcpServers" or "servers" key');
+			}
+
+			const servers = config.mcpServers || config.servers;
+			let successCount = 0;
+			let failCount = 0;
+
+			for (const [name, settings] of Object.entries(servers)) {
+				try {
+					const payload = {
+						name,
+						transport: 'stdio',
+						command: (settings as any).command,
+						args: JSON.stringify((settings as any).args || []),
+						enabled: true,
+						description: '',
+						baseUrl: '',
+						apiKey: ''
+					};
+
+					const response = await fetch('/api/mcp-servers', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(payload)
+					});
+
+					if (response.ok) {
+						successCount++;
+					} else {
+						failCount++;
+					}
+				} catch (err) {
+					console.error(`Failed to import server ${name}:`, err);
+					failCount++;
+				}
+			}
+
+			showToast({
+				title: 'Import Complete',
+				description: `Successfully imported ${successCount} servers. ${failCount > 0 ? `Failed to import ${failCount} servers.` : ''}`,
+				type: failCount > 0 ? 'warning' : 'default'
+			});
+
+			showImportDialog = false;
+			importConfigJson = '';
+			loadMcpServers();
+		} catch (err) {
+			showToast({
+				title: 'Import Failed',
+				description: err instanceof Error ? err.message : 'Invalid JSON configuration',
+				type: 'error'
+			});
 		}
 	}
 
@@ -930,12 +1004,6 @@
 			editingProviderId = null;
 		}
 	}
-	function handleTransportChange(event) {
-		// Check if event has detail (custom event) or is the value itself
-		const val = event?.detail?.value || event?.value || event;
-		console.log('Transport changed:', val);
-		newMcpServer.transport = typeof val === 'string' ? val : val?.value || val;
-	}
 </script>
 
 <div class="mx-auto h-full max-w-5xl overflow-y-auto px-4 py-8">
@@ -1266,7 +1334,16 @@
 					{/if}
 				</div>
 			</CardContent>
-			<CardFooter>
+			<CardFooter class="flex justify-between">
+				<Button
+					variant="outline"
+					on:click={() => {
+						showImportDialog = true;
+						importConfigJson = '';
+					}}
+				>
+					Import Config
+				</Button>
 				<Button
 					on:click={() => {
 						resetMcpServerForm();
@@ -1322,7 +1399,7 @@
 
 								<div>
 									<label for="mcp-transport" class="mb-1 block font-medium">Transport</label>
-									<Select value={newMcpServer.transport} onSelectedChange={handleTransportChange}>
+									<Select bind:value={newMcpServer.transport}>
 										<SelectTrigger>
 											<SelectValue placeholder="Select transport" />
 										</SelectTrigger>
@@ -1334,7 +1411,7 @@
 									</Select>
 								</div>
 
-								{#if newMcpServer.transport === 'stdio'}
+								{#if newMcpServer.transport === 'stdio' || (typeof newMcpServer.transport === 'object' && newMcpServer.transport?.value === 'stdio')}
 									<div>
 										<label for="mcp-command" class="mb-1 block font-medium">Command</label>
 										<Input
@@ -1401,6 +1478,60 @@
 				</DialogPrimitive.Portal>
 			</DialogPrimitive.Root>
 		{/if}
+	{/if}
+
+	{#if showImportDialog}
+		<DialogPrimitive.Root bind:open={showImportDialog}>
+			<DialogPrimitive.Portal>
+				<DialogPrimitive.Overlay class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm" />
+				<div class="fixed inset-0 z-50 flex items-center justify-center">
+					<DialogPrimitive.Content
+						class="fixed z-50 w-full max-w-lg border bg-background p-6 shadow-lg sm:rounded-lg"
+					>
+						<div class="mb-4 flex flex-col space-y-1.5">
+							<h2 class="text-lg font-semibold">Import MCP Configuration</h2>
+							<p class="text-sm text-muted-foreground">
+								Paste your JSON configuration below to batch import MCP servers.
+							</p>
+						</div>
+
+						<div class="space-y-4">
+							<textarea
+								bind:value={importConfigJson}
+								class="border-input focus-visible:ring-ring min-h-[200px] w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+								placeholder={JSON.stringify(
+									{
+										mcpServers: {
+											'sequential-thinking': {
+												command: 'npx',
+												args: ['-y', '@modelcontextprotocol/server-sequential-thinking']
+											}
+										}
+									},
+									null,
+									2
+								)}
+							></textarea>
+
+							<div class="flex justify-end gap-2">
+								<Button
+									variant="outline"
+									on:click={() => {
+										showImportDialog = false;
+										importConfigJson = '';
+									}}
+								>
+									Cancel
+								</Button>
+								<Button on:click={importMcpConfig} disabled={!importConfigJson.trim()}>
+									Import
+								</Button>
+							</div>
+						</div>
+					</DialogPrimitive.Content>
+				</div>
+			</DialogPrimitive.Portal>
+		</DialogPrimitive.Root>
 	{/if}
 
 	{#if showDiscoveredModelsDialog}
