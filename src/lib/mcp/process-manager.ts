@@ -78,15 +78,10 @@ class McpProcessManager extends EventEmitter {
         console.log(`[MCP ${config.id}] Spawning process: ${config.command} ${config.args.join(' ')}`);
 
         // Use direct spawn without shell for proper stdio handling
-        // Resolve full path for common commands (macOS homebrew)
-        let command = config.command;
-        if (command === 'npx') {
-            command = '/opt/homebrew/bin/npx';
-        } else if (command === 'node') {
-            command = '/opt/homebrew/bin/node';
-        }
+        // Let the system resolve command path via PATH environment variable
+        const command = config.command;
 
-        console.log(`[MCP ${config.id}] Resolved command: ${command}`);
+        console.log(`[MCP ${config.id}] Using command: ${command}`);
 
         // Ensure PATH includes common locations for node/npx
         const currentPath = process.env.PATH || '';
@@ -168,10 +163,10 @@ class McpProcessManager extends EventEmitter {
             let ready = false;
             const readyTimeout = setTimeout(() => {
                 if (!ready) {
-                    console.log(`[MCP ${config.id}] Ready timeout (30s), proceeding...`);
+                    console.log(`[MCP ${config.id}] Ready timeout (10s), proceeding...`);
                     resolve();
                 }
-            }, 30000); // Wait up to 30 seconds for ready message (npx may need to download package)
+            }, 10000); // Wait up to 10 seconds for ready message
 
             const checkReady = (data: Buffer) => {
                 const str = data.toString();
