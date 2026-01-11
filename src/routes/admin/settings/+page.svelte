@@ -294,19 +294,27 @@
 		? models.filter((m) => m.providerId === selectedProviderId)
 		: models;
 
-	$: groupedDiscoveredModels =
-		discoveredModelsForProvider.length > 30 &&
-		currentProviderForDiscovery?.type === 'openai' &&
-		currentProviderForDiscovery?.baseUrl.includes('openrouter')
-			? discoveredModelsForProvider.reduce((acc, model) => {
-					const providerName = model.id.split('/')[0];
-					if (!acc[providerName]) {
-						acc[providerName] = [];
-					}
-					acc[providerName].push(model);
-					return acc;
-				}, {})
-			: null;
+	$: groupedDiscoveredModels = (() => {
+		// Only group if there are many models
+		if (discoveredModelsForProvider.length <= 30) return null;
+
+		// Check if models have vendor prefixes (contain "/") and there are multiple vendors
+		const vendorPrefixes = new Set(
+			discoveredModelsForProvider.filter((m) => m.id.includes('/')).map((m) => m.id.split('/')[0])
+		);
+
+		// Only group if there are at least 2 different vendors
+		if (vendorPrefixes.size < 2) return null;
+
+		return discoveredModelsForProvider.reduce((acc, model) => {
+			const providerName = model.id.includes('/') ? model.id.split('/')[0] : 'other';
+			if (!acc[providerName]) {
+				acc[providerName] = [];
+			}
+			acc[providerName].push(model);
+			return acc;
+		}, {});
+	})();
 
 	$: if (showDiscoveredModelsDialog && groupedDiscoveredModels && !selectedDiscoveredProvider) {
 		selectedDiscoveredProvider = Object.keys(groupedDiscoveredModels)[0];

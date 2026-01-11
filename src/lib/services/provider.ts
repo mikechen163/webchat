@@ -54,14 +54,14 @@ async function testOpenAIKey(apiKey: string, baseUrl?: string): Promise<boolean>
     const sanitizedApiKey = apiKey.replace(/[^\x00-\x7F]/g, '').trim();
 
     console.log(`Testing OpenAI key with sanitize baseurl: ${baseUrl}`);
-    
+
     // Ensure baseUrl is a fully qualified URL
-    const url = baseUrl ? 
-       baseUrl + '/models' : 
+    const url = baseUrl ?
+      baseUrl + '/models' :
       'https://api.openai.com/v1/models';
 
-      console.log(`Testing OpenAI key with URL: ${url}`);
-    
+    console.log(`Testing OpenAI key with URL: ${url}`);
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -69,7 +69,7 @@ async function testOpenAIKey(apiKey: string, baseUrl?: string): Promise<boolean>
         'Content-Type': 'application/json'
       }
     });
-    
+
     return response.ok;
   } catch (error) {
     console.error("Error testing OpenAI key:", error);
@@ -83,13 +83,13 @@ async function fetchOpenAIModels(apiKey: string, baseUrl?: string): Promise<Mode
   //   new URL('/v1/models', ensureAbsoluteUrl(baseUrl)).toString() : 
   //   'https://api.openai.com/v1/models';
 
-  const url = baseUrl ? 
-  baseUrl + '/models' : 
- 'https://api.openai.com/v1/models';
+  const url = baseUrl ?
+    baseUrl + '/models' :
+    'https://api.openai.com/v1/models';
 
-      console.log(`Testing OpenAI key with URL: ${url}`);
-    
-  
+  console.log(`Testing OpenAI key with URL: ${url}`);
+
+
   const response = await fetch(url, {
     method: 'GET',
     headers: {
@@ -97,22 +97,36 @@ async function fetchOpenAIModels(apiKey: string, baseUrl?: string): Promise<Mode
       'Content-Type': 'application/json'
     }
   });
-  
+
   if (!response.ok) {
     throw new Error(`Failed to fetch OpenAI models: ${response.statusText}`);
   }
-  
-const data = await response.json();
-console.log('OpenAI Models:', data);
 
-// Handle both array and object responses
-const models = Array.isArray(data) ? data : (data.data || []);
+  const data = await response.json();
+  console.log('OpenAI Models:', data);
 
-// 保留全部结果并转换格式
-return models.map((model: any) => ({
-  id: model.id,
-  name: model.id
-}));
+  // Handle both array and object responses
+  const models = Array.isArray(data) ? data : (data.data || []);
+
+  // 保留全部结果并转换格式,增加数据验证
+  const processedModels = models
+    .filter((model: any) => model && (model.id || model.name))
+    .map((model: any) => {
+      const id = String(model.id || model.name || '').trim();
+      const name = String(model.name || model.id || '').trim();
+      return { id, name };
+    })
+    .filter((model: { id: string; name: string }) => model.id.length > 0);
+
+  // Remove duplicate model IDs (some APIs like NVIDIA return duplicates)
+  const seen = new Set<string>();
+  return processedModels.filter((model: { id: string; name: string }) => {
+    if (seen.has(model.id)) {
+      return false;
+    }
+    seen.add(model.id);
+    return true;
+  });
 
 }
 
@@ -121,19 +135,19 @@ async function testGeminiKey(apiKey: string, baseUrl?: string): Promise<boolean>
   try {
     // Sanitize the API key
     const sanitizedApiKey = apiKey.replace(/[^\x00-\x7F]/g, '').trim();
-    
+
     // Ensure baseUrl is a fully qualified URL
-    const url = baseUrl ? 
-      new URL(`/v1beta/models?key=${sanitizedApiKey}`, ensureAbsoluteUrl(baseUrl)).toString() : 
+    const url = baseUrl ?
+      new URL(`/v1beta/models?key=${sanitizedApiKey}`, ensureAbsoluteUrl(baseUrl)).toString() :
       `https://generativelanguage.googleapis.com/v1beta/models?key=${sanitizedApiKey}`;
-    
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json'
       }
     });
-    
+
     return response.ok;
   } catch (error) {
     console.error("Error testing Gemini key:", error);
@@ -143,27 +157,27 @@ async function testGeminiKey(apiKey: string, baseUrl?: string): Promise<boolean>
 
 async function fetchGeminiModels(apiKey: string, baseUrl?: string): Promise<Model[]> {
   // Ensure baseUrl is a fully qualified URL
-  const url = baseUrl ? 
-    new URL(`/v1beta/models?key=${apiKey}`, ensureAbsoluteUrl(baseUrl)).toString() : 
+  const url = baseUrl ?
+    new URL(`/v1beta/models?key=${apiKey}`, ensureAbsoluteUrl(baseUrl)).toString() :
     `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-  
+
   const response = await fetch(url, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json'
     }
   });
-  
+
   if (!response.ok) {
     throw new Error(`Failed to fetch Gemini models: ${response.statusText}`);
   }
-  
+
   const data = await response.json();
-  
+
   // Filter for chat models
   return data.models
-    .filter((model: any) => 
-      model.name.includes('gemini') || 
+    .filter((model: any) =>
+      model.name.includes('gemini') ||
       model.supportedGenerationMethods.includes('generateContent')
     )
     .map((model: any) => ({
@@ -177,12 +191,12 @@ async function testAnthropicKey(apiKey: string, baseUrl?: string): Promise<boole
   try {
     // Sanitize the API key
     const sanitizedApiKey = apiKey.replace(/[^\x00-\x7F]/g, '').trim();
-    
+
     // Ensure baseUrl is a fully qualified URL
-    const url = baseUrl ? 
-      new URL('/v1/messages', ensureAbsoluteUrl(baseUrl)).toString() : 
+    const url = baseUrl ?
+      new URL('/v1/messages', ensureAbsoluteUrl(baseUrl)).toString() :
       'https://api.anthropic.com/v1/messages';
-    
+
     try {
       const response = await fetch(url, {
         method: 'OPTIONS',
@@ -191,7 +205,7 @@ async function testAnthropicKey(apiKey: string, baseUrl?: string): Promise<boole
           'anthropic-version': '2023-06-01'
         }
       });
-      
+
       return response.ok || response.status === 405; // OPTIONS may not be supported
     } catch {
       // Try a different approach for Anthropic
