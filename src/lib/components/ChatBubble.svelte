@@ -97,31 +97,73 @@
 			const allToolMatches = [...raw.matchAll(toolOutputPattern)];
 
 			if (allToolMatches.length > 0) {
+				// Collect all tool names
+				const toolNames = allToolMatches.map((m) => m[1]);
+
 				// Find the last tool output marker
 				const lastMatch = allToolMatches[allToolMatches.length - 1];
+				const lastToolName = lastMatch[1];
 				const lastToolOutputStart = lastMatch.index! + lastMatch[0].length;
 				const afterLastOutput = raw.slice(lastToolOutputStart);
 
-				// The tool output is usually a JSON block, find where it ends
-				// Look for text that doesn't start with { or whitespace before {
 				let toolResultContent = '';
 				let finalText = '';
 
-				// Try to find a JSON block at the start
-				const jsonMatch = afterLastOutput.match(/^\s*(\{[\s\S]*?\})\s*([\s\S]*)/);
-				if (jsonMatch) {
-					toolResultContent = jsonMatch[1].trim();
-					finalText = jsonMatch[2].trim();
+				// Strategy: Look for the final response after tool output
+				// The final response typically comes after a </think> tag or starts with markdown headers
+
+				// First, check if there's a <think> block after the tool output (model reasoning about results)
+				const thinkPattern = /<think>[\s\S]*?<\/think>/g;
+				const thinkMatches = [...afterLastOutput.matchAll(thinkPattern)];
+
+				if (thinkMatches.length > 0) {
+					// Find the last </think> tag
+					const lastThink = thinkMatches[thinkMatches.length - 1];
+					const thinkEndIdx = lastThink.index! + lastThink[0].length;
+
+					// Everything before the first <think> or between markers is tool output
+					const firstThinkStart = thinkMatches[0].index!;
+					toolResultContent = afterLastOutput.slice(0, firstThinkStart).trim();
+
+					// Everything after the last </think> is the final response
+					finalText = afterLastOutput.slice(thinkEndIdx).trim();
 				} else {
-					// No JSON, just take all as result
-					toolResultContent = afterLastOutput.trim();
+					// No <think> block found, try to find markdown content
+					// Look for patterns that indicate the start of the final response
+					const markdownStartPatterns = [
+						/\n\s*#{1,3}\s+\*?\*?[^*\n]+\*?\*?\s*\n/, // Headers like ### **Title**
+						/\n\s*[-*]\s+\*?\*?[^*\n]+/, // Bullet points
+						/\n\s*\d+\.\s+/, // Numbered lists
+						/\n\s*---+\s*\n/ // Horizontal rules
+					];
+
+					let splitIdx = -1;
+					for (const pattern of markdownStartPatterns) {
+						const match = afterLastOutput.match(pattern);
+						if (match && match.index !== undefined) {
+							if (splitIdx === -1 || match.index < splitIdx) {
+								splitIdx = match.index;
+							}
+						}
+					}
+
+					if (splitIdx > 0) {
+						toolResultContent = afterLastOutput.slice(0, splitIdx).trim();
+						finalText = afterLastOutput.slice(splitIdx).trim();
+					} else {
+						// Fallback: treat everything as tool result
+						toolResultContent = afterLastOutput.trim();
+					}
 				}
 
 				return {
 					code: '',
 					result: toolResultContent,
 					thought: '',
-					finalText: finalText
+					finalText: finalText,
+					toolName: lastToolName,
+					toolNames: toolNames,
+					isPythonTool: false
 				};
 			}
 
@@ -243,7 +285,14 @@
 				result = result.slice(1, -1).trim();
 			}
 
-			return { code, result, thought };
+			return {
+				code,
+				result,
+				thought,
+				toolName: 'execute_python',
+				toolNames: ['execute_python'],
+				isPythonTool: true
+			};
 		} catch (e) {
 			console.error('parseExecutePython error', e);
 			return null;
@@ -493,100 +542,101 @@
 					</div>
 				{/if}
 
-				<!-- new: special rendering for execute_python tool messages -->
+				<!-- special rendering for tool messages -->
 				{#if isExecutePython}
-					<!-- Tool details toggle button -->
-					<div class="tool-toggle mb-2">
-						<button
-							class="flex items-center gap-1 rounded border border-gray-300 bg-gray-100 px-2 py-1 text-xs text-gray-600 hover:bg-gray-200"
-							on:click={toggleToolDetails}
-						>
-							{#if showToolDetails}
-								<ChevronUp class="h-3 w-3" />
-								<span>Hide tool details</span>
-							{:else}
-								<ChevronDown class="h-3 w-3" />
+					{#if toolParsed?.isPythonTool}
+						<!-- Python tool: show code and result with toggle -->
+						<div class="tool-toggle mb-2">
+							<button
+								class="flex items-center gap-1 rounded border border-gray-300 bg-gray-100 px-2 py-1 text-xs text-gray-600 hover:bg-gray-200"
+								on:click={toggleToolDetails}
+							>
+								{#if showToolDetails}
+									<ChevronUp class="h-3 w-3" />
+									<span>隐藏代码详情</span>
+								{:else}
+									<ChevronDown class="h-3 w-3" />
+									<span>🐍 Python 执行 {toolParsed?.result ? '✓' : '...'}</span>
+								{/if}
+							</button>
+						</div>
+
+						{#if showToolDetails}
+							<div class="space-y-3">
+								{#if toolParsed?.thought}
+									<div class="tool-block relative rounded border border-blue-200 bg-blue-50 p-3">
+										<div class="mb-2 flex items-center justify-between">
+											<div class="text-xs text-blue-700">Thought</div>
+											<button
+												class="rounded p-1 text-blue-500 hover:text-blue-700 focus:outline-none"
+												on:click={copyThought}
+												aria-label="Copy thought"
+											>
+												{#if copiedThought}
+													<Check class="h-4 w-4 text-green-500" />
+												{:else}
+													<ClipboardCopy class="h-4 w-4" />
+												{/if}
+											</button>
+										</div>
+										<pre class="whitespace-pre-wrap text-sm text-gray-800"><code
+												>{toolParsed.thought}</code
+											></pre>
+									</div>
+								{/if}
+
+								{#if toolParsed?.code}
+									<div class="tool-block relative rounded border border-gray-200 bg-gray-50 p-3">
+										<div class="mb-2 flex items-center justify-between">
+											<div class="text-xs text-gray-600">代码</div>
+											<button
+												class="rounded p-1 text-gray-500 hover:text-gray-700 focus:outline-none"
+												on:click={copyCode}
+												aria-label="Copy code"
+											>
+												{#if copiedCode}
+													<Check class="h-4 w-4 text-green-500" />
+												{:else}
+													<ClipboardCopy class="h-4 w-4" />
+												{/if}
+											</button>
+										</div>
+										<pre class="whitespace-pre-wrap text-sm"><code>{toolParsed.code}</code></pre>
+									</div>
+								{/if}
+
+								{#if toolParsed?.result}
+									<div class="tool-block relative rounded border border-gray-200 bg-gray-200 p-3">
+										<div class="mb-2 flex items-center justify-between">
+											<div class="text-xs text-gray-600">输出结果</div>
+											<button
+												class="rounded p-1 text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
+												on:click={copyResult}
+												aria-label="Copy result"
+											>
+												{#if copiedResult}
+													<Check class="h-4 w-4 text-green-500" />
+												{:else}
+													<ClipboardCopy class="h-4 w-4" />
+												{/if}
+											</button>
+										</div>
+										<pre class="whitespace-pre-wrap text-sm text-gray-900">{toolParsed.result}</pre>
+									</div>
+								{/if}
+							</div>
+						{/if}
+					{:else}
+						<!-- Non-Python tools: only show status badges -->
+						<div class="tool-badges mb-2 flex flex-wrap gap-1">
+							{#each toolParsed?.toolNames || [] as toolName}
 								<span
-									>Show tool details ({toolParsed?.thought ? 'thought' : ''}{toolParsed?.code
-										? toolParsed?.thought
-											? ', code'
-											: 'code'
-										: ''}{toolParsed?.result
-										? toolParsed?.thought || toolParsed?.code
-											? ', result'
-											: 'result'
-										: ''})</span
+									class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
 								>
-							{/if}
-						</button>
-					</div>
-
-					{#if showToolDetails}
-						<div class="space-y-3">
-							{#if toolParsed?.thought}
-								<div class="tool-block relative rounded border border-blue-200 bg-blue-50 p-3">
-									<div class="mb-2 flex items-center justify-between">
-										<div class="text-xs text-blue-700">Thought</div>
-										<button
-											class="rounded p-1 text-blue-500 hover:text-blue-700 focus:outline-none"
-											on:click={copyThought}
-											aria-label="Copy thought"
-										>
-											{#if copiedThought}
-												<Check class="h-4 w-4 text-green-500" />
-											{:else}
-												<ClipboardCopy class="h-4 w-4" />
-											{/if}
-										</button>
-									</div>
-									<pre class="whitespace-pre-wrap text-sm text-gray-800"><code
-											>{toolParsed.thought}</code
-										></pre>
-								</div>
-							{/if}
-
-							{#if toolParsed?.code}
-								<div class="tool-block relative rounded border border-gray-200 bg-gray-50 p-3">
-									<div class="mb-2 flex items-center justify-between">
-										<div class="text-xs text-gray-600">{'code'}</div>
-										<button
-											class="rounded p-1 text-gray-500 hover:text-gray-700 focus:outline-none"
-											on:click={copyCode}
-											aria-label="Copy code"
-										>
-											{#if copiedCode}
-												<Check class="h-4 w-4 text-green-500" />
-											{:else}
-												<ClipboardCopy class="h-4 w-4" />
-											{/if}
-										</button>
-									</div>
-									<pre class="whitespace-pre-wrap text-sm"><code>{toolParsed.code}</code></pre>
-								</div>
-							{/if}
-
-							{#if toolParsed?.result}
-								<div class="tool-block relative rounded border border-gray-200 bg-gray-200 p-3">
-									<div class="mb-2 flex items-center justify-between">
-										<div class="text-xs text-gray-600">{'result'}</div>
-
-										<!-- 按钮：提升可读性 -->
-										<button
-											class="rounded p-1 text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
-											on:click={copyResult}
-											aria-label="Copy result"
-										>
-											{#if copiedResult}
-												<Check class="h-4 w-4 text-green-500" />
-											{:else}
-												<ClipboardCopy class="h-4 w-4" />
-											{/if}
-										</button>
-									</div>
-
-									<pre class="whitespace-pre-wrap text-sm text-gray-900">{toolParsed.result}</pre>
-								</div>
-							{/if}
+									🔧 {toolName}
+									<span class="text-green-600">✓</span>
+								</span>
+							{/each}
 						</div>
 					{/if}
 

@@ -8,6 +8,8 @@ import { OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL } from '$env/static/priva
 import fetch from 'node-fetch';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { t } from "$lib/stores/i18n.js";
+import * as fs from 'fs';
+import * as path from 'path';
 
 
 const prisma = new PrismaClient();
@@ -18,6 +20,37 @@ const MAX_HISTORY_MESSAGES = 10;
 // 从环境变量读取代理地址（示例：http://user:pass@host:port）
 const proxyUrl = process.env.HTTPS_PROXY || 'http://your-proxy-server:8080';
 const agent = new HttpsProxyAgent(proxyUrl); // 自动适配 HTTP/HTTPS
+
+// 读取全局系统提示配置，并添加当前时间
+function getGlobalSystemPrompt(): string {
+  try {
+    // 获取当前时间（中文格式）
+    const now = new Date();
+    const dateTimeStr = now.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      weekday: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Shanghai'
+    });
+    const timeInfo = `当前时间：${dateTimeStr}\n\n`;
+
+    const configPath = path.resolve(process.cwd(), 'config/system-prompt.json');
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      const prompt = config.globalSystemPrompt || '';
+      return timeInfo + prompt;
+    }
+    return timeInfo;
+  } catch (e) {
+    console.error('Failed to read global system prompt:', e);
+  }
+  return '';
+}
 
 // export const POST: RequestHandler = async ({ request, params, locals }) => {
 //   const { user } =  locals.auth;
@@ -434,8 +467,17 @@ export async function POST({ request, params, fetch, locals }) {
     // Build dynamic tool description including user's enabled MCP servers
     const { description: toolDescription, mcpToolMap } = await buildDynamicToolDescription(user?.id);
 
+    // Get global system prompt and prepend to messages
+    const globalSystemPrompt = getGlobalSystemPrompt();
+
     // Prepend the system tool registration so the model is aware of available tools.
-    const messages = [{ role: 'system', content: toolDescription }, ...history, { role: 'user', content }];
+    const systemMessages: Array<{ role: string, content: string }> = [];
+    if (globalSystemPrompt) {
+      systemMessages.push({ role: 'system', content: globalSystemPrompt });
+    }
+    systemMessages.push({ role: 'system', content: toolDescription });
+
+    const messages = [...systemMessages, ...history, { role: 'user', content }];
     let fullAssistantMessage = '';
     let fullReasoningContent = '';
     let reason_content_flag = false;
